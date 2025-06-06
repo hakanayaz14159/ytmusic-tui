@@ -1,0 +1,119 @@
+/* ============================================================================
+   TEXTUAL THEME-BASED STYLING
+   ============================================================================ */
+
+* {
+    box-sizing: border-box;
+}
+
+/* Application root styling */
+App {
+    background: $background;
+    color: $foreground;
+}
+
+/* ============================================================================
+   GLOBAL STYLING
+   ============================================================================ */
+
+Header {
+    dock: top;
+    background: $panel;
+    color: $foreground;
+    border: solid $primary;
+    width: 100%;
+    height: 3;
+}
+
+Header > Horizontal {
+    height: 100%;
+    width: 100%;
+}
+
+Header > Horizontal > Static {
+    height: 100%;
+    width: auto;
+}
+
+Header #header_title {
+    width: 20%;
+}
+
+Header #song_info {
+    width: 40%;
+}
+
+Header #playlist_info {
+    width: 40%;
+}
+
+Footer {
+    dock: bottom;
+    background: $panel;
+    color: $foreground;
+    border: solid $primary;
+}
+
+/* ============================================================================
+   MAIN MENU STYLING
+   ============================================================================ */
+
+/* Main menu container */
+MainMenu {
+    width: 100%;
+    height: auto;
+    background: transparent;
+    border: none;
+    padding: 1;
+    align: center middle;
+    content-align: center middle;
+}
+
+/* Option list within main menu */
+MainMenu > OptionList {
+    width: 50%;
+    height: auto;
+    background: $surface;
+    color: $foreground;
+}
+
+/* Default option styling */
+MainMenu > OptionList > .option-list--option {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    background: transparent;
+    color: $foreground;
+}
+
+/* Highlighted/selected option */
+MainMenu > OptionList > .option-list--option-highlighted {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    background: $primary;
+    color: $background;
+}
+
+/* Hovered option */
+MainMenu > OptionList > .option-list--option-hover {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    background: $primary-lighten-1;
+    color: $background;
+}
+
+/* ============================================================================
+   ASCII TITLE
+   ============================================================================ */
+
+AsciiTitle {
+    background: transparent;
+    width: auto;
+    height: auto;
+    text-align: center;
+    content-align: center middle;
+    color: $primary;
+    text-style: bold;
+}
