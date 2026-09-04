@@ -26,12 +26,14 @@ class Header(Container):
 
     def update_song_info(self, song: Song | None) -> None:
         if song is None:
-            self.query_one("#song_info").update("")
+            self.query_one("#song_info", Static).update("")
         else:
-            self.query_one("#song_info").update(f"Song: {song['title']}")
+            self.query_one("#song_info", Static).update(f"Song: {song['title']}")
 
     def update_playlist_info(self, playlist: Playlist | None) -> None:
         if playlist is None:
-            self.query_one("#playlist_info").update("")
+            self.query_one("#playlist_info", Static).update("")
         else:
-            self.query_one("#playlist_info").update(f"Playlist: {playlist['name']}")
+            self.query_one("#playlist_info", Static).update(
+                f"Playlist: {playlist['name']}"
+            )

@@ -1,7 +1,13 @@
+from typing import TYPE_CHECKING, cast
+
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
+
+if TYPE_CHECKING:
+    # Circular import broken for type checker only
+    from ytmusic_cli.main import YTMusicApp
 
 
 class MainMenu(Container):
@@ -20,19 +26,20 @@ class MainMenu(Container):
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle menu option selection."""
         option_id = event.option.id
+        app = cast("YTMusicApp", self.app)
 
         if option_id == "select_account":
             self.action_select_account()
         elif option_id == "playlists":
             self.action_playlists()
         elif option_id == "search":
-            self.app.action_search()
+            app.action_search()
         elif option_id == "settings":
             self.action_settings()
         elif option_id == "help":
-            self.app.action_help()
+            app.action_help()
         elif option_id == "quit":
-            self.app.exit()
+            app.exit()
 
     def action_select_account(self) -> None:
         """Handle account selection."""
@@ -41,7 +48,8 @@ class MainMenu(Container):
 
     def action_playlists(self) -> None:
         """Handle playlists action."""
-        self.app.action_playlists()
+        app = cast("YTMusicApp", self.app)
+        app.action_playlists()
 
     def action_settings(self) -> None:
         """Handle settings action."""

@@ -1,211 +1,156 @@
 # YTMusic CLI
 
-A modern command-line interface with Terminal User Interface (TUI) for YouTube Music, built with Python.
+A modern, audio-only Terminal User Interface (TUI) music player for YouTube, built with Python, [Textual](https://github.com/Textualize/textual), and [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
-## 🎵 Features
+YTMusic CLI allows you to stream audio directly from YouTube without video overhead, manage multiple profiles, organize playlists, search tracks, and download audio locally for offline listening—all within a rich terminal interface.
 
-- **Terminal User Interface (TUI)** - Beautiful, interactive interface built with Textual
-- **Music Playback** - Stream and download music from YouTube Music
-- **Playlist Management** - Create, manage, and sync playlists
-- **Search & Discovery** - Search for songs, artists, albums, and playlists
-- **Local Database** - Store preferences and playlist data locally
-- **Cross-platform** - Works on Linux, macOS, and Windows
+---
 
-## 🚀 Installation
+## Features
 
-### Prerequisites
+- **Audio-Only Streaming**: Low-bandwidth, high-quality audio streaming from YouTube without downloading video.
+- **Interactive TUI**: Built on modern Textual with intuitive navigation, dark theme, and visual playback controls.
+- **Profile Management**: Support for multiple user profiles with independent preferences and playlists.
+- **Custom Playlists**: Create, edit, and organize custom playlists backed by a local SQLite database.
+- **Search & Discovery**: Fast keyword search for songs, albums, and artists.
+- **Offline Downloads**: Download audio tracks locally with embedded metadata for offline playback.
+- **Test-Driven Architecture**: Designed from the ground up with strict separation of concerns, comprehensive test coverage, and isolated in-memory test databases.
 
-- Python 3.11 or higher
-- Poetry (recommended) or pip
+---
 
-### Install with Poetry (Recommended)
+## Requirements
+
+- **Python**: 3.11 or higher
+- **Package Manager**: [uv](https://docs.astral.sh/uv/) (recommended)
+- **Audio Backend**: System `libvlc` (`vlc` package on Linux / macOS / Windows)
+
+---
+
+## Installation & Setup
+
+### Using `uv` (Recommended)
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/ytmusic-cli.git
+   cd ytmusic-cli
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   uv sync
+   ```
+
+3. Run the application:
+   ```bash
+   uv run ytmusic-cli
+   ```
+
+### Development Installation
+
+To install all development tools, linters, and testing dependencies:
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/ytmusic-cli.git
-cd ytmusic-cli
-
-# Install dependencies
-poetry install
-
-# Activate the virtual environment
-poetry shell
+uv sync --all-groups
 ```
 
-### Install with pip
+---
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/ytmusic-cli.git
-cd ytmusic-cli
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -e .
-```
-
-## 📖 Usage
+## Usage
 
 ### Launch the TUI
 
 ```bash
-ytmusic-cli
+uv run ytmusic-cli
 ```
 
 ### Command Line Options
 
 ```bash
-# Start with debug mode
-ytmusic-cli --debug
-
 # Show version
-ytmusic-cli --version
+uv run ytmusic-cli --version
 
 # Show help
-ytmusic-cli --help
+uv run ytmusic-cli --help
 ```
 
 ### Key Bindings
 
-- `q` or `Ctrl+C` - Quit application
-- `↑/↓` - Navigate lists
-- `Enter` - Select/Play
-- `Space` - Play/Pause
-- `s` - Search
-- `p` - Show playlists
-- `h` - Show help
+| Key           | Action                              |
+| ------------- | ----------------------------------- |
+| `q`           | Quit application                    |
+| `a`           | Switch / manage accounts & profiles |
+| `p`           | Open playlists                      |
+| `s`           | Search tracks                       |
+| `h`           | Show help dialog                    |
+| `Space`       | Play / Pause current track          |
+| `Up` / `Down` | Navigate menu and lists             |
+| `Enter`       | Select / activate item              |
 
-## 🛠️ Development
+---
 
-### Setup Development Environment
+## Architecture & Design
 
-```bash
-# Clone and setup
-git clone https://github.com/yourusername/ytmusic-cli.git
-cd ytmusic-cli
+The project follows a clean layered architecture with strict separation of concerns:
 
-# Install with development dependencies
-poetry install --with dev
-
-# Activate virtual environment
-poetry shell
-
-# Install pre-commit hooks
-pre-commit install
+```
+ytmusic_cli/
+├── db/             # Data access layer (Peewee SQLite models & migrations)
+│   ├── user.py     # Profile & user account entities
+│   ├── playlist.py # Playlists & track associations
+│   └── song.py     # Track metadata persistence
+├── music/          # Domain & infrastructure services
+│   ├── types.py    # Domain models and TypedDicts
+│   ├── youtube.py  # yt-dlp adapter for search, extraction, and downloads
+│   └── state.py    # Reactive application state
+├── tui/            # Presentation layer (Textual widgets & screens)
+│   ├── header.py   # Top status bar and playback info
+│   ├── main_menu.py# Main navigation menu
+│   └── theme.py    # Custom color palette and styling
+└── main.py         # Application entry point and CLI commands
 ```
 
-### Code Formatting and Linting
+### Test-Driven Design (TDD)
+
+Every feature is developed test-first:
+
+1. **Domain & Data**: Tested with isolated in-memory SQLite fixtures (`:memory:` via `test_db`).
+2. **YouTube Adapter**: Tested using `mock_youtube` to eliminate flaky network calls during tests.
+3. **Audio Playback**: Tested using `mock_player` for silent, deterministic headless verification.
+4. **TUI Screens**: Tested asynchronously using Textual's test pilot (`app.run_test()`).
+
+---
+
+## Development & Quality Assurance
+
+All development commands are powered by `uv` and simplified with `make`:
 
 ```bash
-# Format code with black
-black src/
+# Run unit and integration tests
+make test
+# or: uv run pytest
 
-# Sort imports with isort
-isort src/
+# Run tests with coverage report
+make test-cov
+# or: uv run pytest --cov=ytmusic_cli --cov-report=term
 
-# Run linting with ruff
-ruff check src/
-
-# Type checking with mypy
-mypy src/
-
-# Run all checks
+# Lint and check formatting
 make lint
+# or: uv run ruff check ytmusic_cli/ tests/ && uv run mypy ytmusic_cli/
+
+# Automatically format code
+make format
+# or: uv run ruff format ytmusic_cli/ tests/ && uv run ruff check --fix ytmusic_cli/ tests/
+
+# Run Textual dev server / live console
+make dev
+# or: uv run textual run --dev ytmusic_cli/main.py
 ```
 
-### Testing
+---
 
-```bash
-# Run tests
-pytest
-
-# Run tests with coverage
-pytest --cov=src --cov-report=html
-
-# Run specific test file
-pytest tests/test_main.py
-```
-
-### Project Structure
-
-```
-ytmusic-cli/
-├── src/
-│   ├── main.py              # Application entry point
-│   ├── db/                  # Database models and operations
-│   │   └── user.py         # User preferences and data
-│   ├── tui/                # Textual UI components
-│   ├── music/              # Music playback and management
-│   └── utils/              # Utility functions
-├── tests/                  # Test files
-├── docs/                   # Documentation
-├── pyproject.toml          # Project configuration
-└── README.md              # This file
-```
-
-### Available Make Commands
-
-```bash
-make install     # Install dependencies
-make dev-install # Install with dev dependencies
-make format      # Format code (black + isort)
-make lint        # Run all linters
-make test        # Run tests
-make clean       # Clean build artifacts
-```
-
-## 🤝 Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Run the linting and tests (`make lint && make test`)
-5. Commit your changes (`git commit -m 'Add amazing feature'`)
-6. Push to the branch (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
-
-### Code Style
-
-- Follow PEP 8
-- Use Black for code formatting
-- Use isort for import sorting
-- Add type hints where appropriate
-- Write docstrings for functions and classes
-
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 👥 Authors
-
-- **Your Name** - _Initial work_ - [hakanayaz14159@gmail.com](mailto:hakanayaz14159@gmail.com)
-
-## 🙏 Acknowledgments
-
-- [Textual](https://github.com/Textualize/textual) - For the amazing TUI framework
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) - For YouTube downloading capabilities
-- [Peewee](https://github.com/coleifer/peewee) - For the lightweight ORM
-
-## 📊 Roadmap
-
-- [ ] Basic TUI interface
-- [ ] Music search functionality
-- [ ] Playlist management
-- [ ] Audio playback integration
-- [ ] User authentication
-- [ ] Offline mode
-- [ ] Custom themes
-- [ ] Plugin system
-
-## 🐛 Known Issues
-
-See [Issues](https://github.com/yourusername/ytmusic-cli/issues) for a list of known issues and feature requests.
-
-## 📚 Documentation
-
-For more detailed documentation, visit our [docs](docs/) directory or check the [Wiki](https://github.com/yourusername/ytmusic-cli/wiki).

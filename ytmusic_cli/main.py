@@ -5,6 +5,7 @@ from typing import Any, ClassVar
 
 import click
 from textual.app import App, ComposeResult
+from textual.binding import BindingType
 from textual.containers import Center
 from textual.widgets import Footer
 
@@ -16,14 +17,14 @@ from ytmusic_cli.tui.main_menu import MainMenu
 from . import __version__
 
 
-class YTMusicApp(App):
+class YTMusicApp(App[None]):
     """Main Textual application for YTMusic CLI."""
 
     TITLE = "YTMusic CLI"
     SUB_TITLE = "YouTube Music Terminal Interface"
     CSS_PATH = "app.tcss"
 
-    BINDINGS: ClassVar[list[tuple[str, str, str]]] = [
+    BINDINGS: ClassVar[list[BindingType]] = [
         ("q", "quit", "Quit"),
         ("a", "accounts", "Accounts"),
         ("p", "playlists", "Playlists"),

@@ -140,8 +140,9 @@ dmypy.json
 # macOS
 .DS_Store
 
-# Poetry
-poetry.lock
+# uv
+# uv.lock is committed for reproducibility
+
 
 # Ruff
 .ruff_cache/

@@ -1,4 +1,4 @@
-.PHONY: help install dev-install format lint test clean build
+.PHONY: help install dev-install format lint test test-cov clean build run dev pre-commit setup-pre-commit
 .DEFAULT_GOAL := help
 
 help: ## Show this help message
@@ -6,26 +6,25 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 install: ## Install dependencies
-	pip install -e .
+	uv sync
 
 dev-install: ## Install with development dependencies
-	pip install -e ".[dev]"
+	uv sync --all-groups
 
-format: ## Format code with black and isort
-	black ytmusic_cli/ tests/
-	isort ytmusic_cli/ tests/
+format: ## Format code and organize imports with ruff
+	uv run ruff format ytmusic_cli/ tests/
+	uv run ruff check --fix ytmusic_cli/ tests/
 
-lint: ## Run all linters
-	black --check ytmusic_cli/ tests/
-	isort --check-only ytmusic_cli/ tests/
-	ruff check ytmusic_cli/ tests/
-	mypy ytmusic_cli/
+lint: ## Run all linters (ruff format check, ruff lint, mypy)
+	uv run ruff format --check ytmusic_cli/ tests/
+	uv run ruff check ytmusic_cli/ tests/
+	uv run mypy ytmusic_cli/
 
 test: ## Run tests
-	pytest
+	uv run pytest
 
 test-cov: ## Run tests with coverage
-	pytest --cov=ytmusic_cli --cov-report=html --cov-report=term
+	uv run pytest --cov=ytmusic_cli --cov-report=html --cov-report=term
 
 clean: ## Clean build artifacts
 	rm -rf build/
@@ -40,16 +39,16 @@ clean: ## Clean build artifacts
 	find . -type f -name "*.pyc" -delete
 
 build: ## Build the package
-	python -m build
+	uv build
 
 run: ## Run the application
-	python -m ytmusic_cli
+	uv run ytmusic-cli
 
 dev: ## Run in development mode with textual dev tools
-	textual run --dev ytmusic_cli/main.py
+	uv run textual run --dev ytmusic_cli/main.py
 
 pre-commit: ## Run pre-commit hooks on all files
-	pre-commit run --all-files
+	uv run pre-commit run --all-files
 
 setup-pre-commit: ## Setup pre-commit hooks
-	pre-commit install
+	uv run pre-commit install
