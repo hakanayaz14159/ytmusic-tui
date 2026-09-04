@@ -22,7 +22,12 @@ from ytmusic_cli.music.services import (
     SettingsService,
 )
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import Song
+from ytmusic_cli.music.types import (
+    AudioStream,
+    PlaybackStatus,
+    PlaybackTickAction,
+    Song,
+)
 from ytmusic_cli.music.youtube import Youtube
 from ytmusic_cli.theme import ytmusic_theme
 from ytmusic_cli.tui.modals.add_to_playlist import AddToPlaylistModal
@@ -88,7 +93,7 @@ class YTMusicApp(App[None]):
         self.settings_service = settings_service
 
     def on_mount(self) -> None:
-        self.set_interval(1.0, self.playback_service.sync_playback)
+        self.set_interval(1.0, self._on_playback_tick)
 
     def compose(self) -> ComposeResult:
         yield AppShell(id="app_shell")
@@ -115,7 +120,17 @@ class YTMusicApp(App[None]):
     def action_toggle_playback(self) -> None:
         if self._insert_if_input(" "):
             return
-        self._toggle_playback()
+        status = AppState().playback_state.get()["status"]
+        if (
+            status == PlaybackStatus.STOPPED
+            and AppState().current_song.get() is not None
+        ):
+            self._replay_current()
+            return
+        try:
+            self.playback_service.toggle()
+        except YTMusicError as err:
+            self.notify(f"Playback failed: {err}", severity="error")
 
     def action_volume_up(self) -> None:
         self.playback_service.volume_up()
@@ -179,7 +194,7 @@ class YTMusicApp(App[None]):
     @work(thread=True, exclusive=True, group="playback")
     def play_song(self, song: Song) -> None:
         try:
-            self.playback_service.play_song(song)
+            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             self.call_from_thread(
                 self.notify,
@@ -187,16 +202,21 @@ class YTMusicApp(App[None]):
                 severity="error",
             )
             return
-        self.call_from_thread(
-            self.notify,
-            f"Playing: {song['title']}",
-            severity="information",
-        )
+        self.call_from_thread(self._begin_playback, song, stream)
 
     @work(thread=True, exclusive=True, group="playback")
     def append_song(self, song: Song) -> None:
+        status = AppState().playback_state.get()["status"]
+        self.playback_service.enqueue(song)
+        if status != PlaybackStatus.STOPPED:
+            self.call_from_thread(
+                self.notify,
+                f"Queued: {song['title']}",
+                severity="information",
+            )
+            return
         try:
-            self.playback_service.append_to_queue(song)
+            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             self.call_from_thread(
                 self.notify,
@@ -204,28 +224,30 @@ class YTMusicApp(App[None]):
                 severity="error",
             )
             return
-        self.call_from_thread(
-            self.notify,
-            f"Queued: {song['title']}",
-            severity="information",
-        )
+        self.call_from_thread(self._begin_playback, song, stream)
 
     @work(thread=True, exclusive=True, group="playback")
     def play_playlist(self, songs: list[Song], start_index: int) -> None:
         try:
-            self.playback_service.play_queue(songs, start_index)
+            song = self.playback_service.set_queue(songs, start_index)
+            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
                 severity="error",
             )
+            return
+        self.call_from_thread(self._begin_playback, song, stream)
 
     def remove_from_queue(self, index: int) -> None:
         try:
-            self.playback_service.remove_from_queue(index)
+            song = self.playback_service.remove_from_queue(index)
         except YTMusicError as err:
             self.notify(str(err), severity="error")
+            return
+        if song is not None:
+            self.play_song(song)
 
     def add_song_to_playlist(self, song: Song) -> None:
         if self.playlist_service is None:
@@ -250,38 +272,68 @@ class YTMusicApp(App[None]):
 
         self.push_screen(AddToPlaylistModal(playlists), _on_pick)
 
-    @work(thread=True, exclusive=True, group="playback")
-    def _toggle_playback(self) -> None:
+    def _begin_playback(self, song: Song, stream: AudioStream) -> None:
         try:
-            self.playback_service.toggle()
+            self.playback_service.start_stream(song, stream)
+        except YTMusicError as err:
+            self.notify(f"Playback failed: {err}", severity="error")
+            return
+        self.notify(f"Playing: {song['title']}", severity="information")
+
+    def _on_playback_tick(self) -> None:
+        tick = self.playback_service.sync_playback()
+        if tick.action == PlaybackTickAction.FAILED:
+            self.notify(tick.message or "Playback failed", severity="error")
+        elif tick.action == PlaybackTickAction.ENDED:
+            self._play_next()
+
+    @work(thread=True, exclusive=True, group="playback")
+    def _replay_current(self) -> None:
+        song = AppState().current_song.get()
+        if song is None:
+            return
+        try:
+            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
                 severity="error",
             )
+            return
+        self.call_from_thread(self._begin_playback, song, stream)
 
     @work(thread=True, exclusive=True, group="playback")
     def _play_next(self) -> None:
         try:
-            self.playback_service.play_next()
+            song = self.playback_service.advance_to_next()
+            if song is None:
+                return
+            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
                 severity="error",
             )
+            return
+        self.call_from_thread(self._begin_playback, song, stream)
 
     @work(thread=True, exclusive=True, group="playback")
     def _play_previous(self) -> None:
         try:
-            self.playback_service.play_previous()
+            song = self.playback_service.advance_to_previous()
+            if song is None:
+                return
+            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
                 severity="error",
             )
+            return
+        self.call_from_thread(self._begin_playback, song, stream)
 
     def _shell(self) -> AppShell:
         return self.query_one(AppShell)

@@ -8,7 +8,7 @@ from textual.widgets import Input
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.services import PlaybackService, SearchService
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackStatus, Song
+from ytmusic_cli.music.types import PlaybackStatus, PlaybackTickAction, Song
 from ytmusic_cli.tui.shell import AppShell
 from ytmusic_cli.tui.widgets.queue_list import QueueList
 
@@ -94,7 +94,7 @@ def test_play_next_advances_and_end_stops(
     assert state.current_song.get() == sample_songs[1]
 
 
-def test_sync_playback_plays_next_on_end(
+def test_sync_playback_signals_ended_without_starting_next(
     mock_youtube: MagicMock,
     mock_player: MagicMock,
     sample_songs: list[Song],
@@ -102,10 +102,21 @@ def test_sync_playback_plays_next_on_end(
     state = AppState()
     service = PlaybackService(mock_player, mock_youtube, state)
     service.play_queue(sample_songs, 0)
-    mock_player.has_ended.return_value = True
+    mock_youtube.get_stream.reset_mock()
+    mock_player.has_ended.return_value = False
+    mock_player.has_failed.return_value = False
+    mock_player.is_playing.side_effect = None
+    mock_player.is_playing.return_value = True
+    mock_player.get_position.return_value = 1.0
     service.sync_playback()
-    assert state.queue_index.get() == 1
-    assert state.current_song.get() == sample_songs[1]
+    mock_player.has_ended.return_value = True
+
+    tick = service.sync_playback()
+
+    assert tick.action == PlaybackTickAction.ENDED
+    assert state.queue_index.get() == 0
+    assert state.current_song.get() == sample_songs[0]
+    mock_youtube.get_stream.assert_not_called()
 
 
 def test_play_previous_moves_back(

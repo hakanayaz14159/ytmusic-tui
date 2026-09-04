@@ -138,6 +138,7 @@ def mock_player(mocker: MockerFixture) -> MagicMock:
     player.get_volume = mocker.MagicMock(side_effect=_get_volume)
     player.get_position = mocker.MagicMock(return_value=0.0)
     player.has_ended = mocker.MagicMock(return_value=False)
+    player.has_failed = mocker.MagicMock(return_value=False)
     player.state = state
 
     return player

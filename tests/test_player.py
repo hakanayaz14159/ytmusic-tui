@@ -46,6 +46,10 @@ def test_play_sets_media_configures_headers_and_plays(mock_vlc: MagicMock) -> No
         "http_headers": {
             "User-Agent": "test-agent",
             "Referer": "https://www.youtube.com/",
+            "Cookie": "SID=abc",
+            "Accept": "audio/*",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "keep-alive",
         },
     }
     player.play(stream)
@@ -55,6 +59,11 @@ def test_play_sets_media_configures_headers_and_plays(mock_vlc: MagicMock) -> No
     mock_media = player._instance.media_new.return_value
     mock_media.add_option.assert_any_call(":http-user-agent=test-agent")
     mock_media.add_option.assert_any_call(":http-referrer=https://www.youtube.com/")
+    mock_media.add_option.assert_any_call(":http-extra-header=Cookie: SID=abc")
+    mock_media.add_option.assert_any_call(":http-extra-header=Accept: audio/*")
+    extra_calls = [call.args[0] for call in mock_media.add_option.call_args_list]
+    assert not any("Accept-Encoding" in option for option in extra_calls)
+    assert not any("Connection" in option for option in extra_calls)
     mock_vlc.set_media.assert_called_once_with(mock_media)
     mock_vlc.play.assert_called_once()
 
@@ -140,12 +149,12 @@ def test_get_position_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) ->
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
-def test_has_ended_true_for_ended_and_error_states(mock_vlc: MagicMock) -> None:
+def test_has_ended_true_only_for_ended_state(mock_vlc: MagicMock) -> None:
     mock_vlc.get_state.return_value = vlc.State.Ended
     player = VLCPlayer()
     assert player.has_ended() is True
     mock_vlc.get_state.return_value = vlc.State.Error
-    assert player.has_ended() is True
+    assert player.has_ended() is False
 
 
 def test_has_ended_false_when_playing(mock_vlc: MagicMock) -> None:
@@ -154,11 +163,29 @@ def test_has_ended_false_when_playing(mock_vlc: MagicMock) -> None:
     assert player.has_ended() is False
 
 
+def test_has_failed_true_only_for_error_state(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_state.return_value = vlc.State.Error
+    player = VLCPlayer()
+    assert player.has_failed() is True
+    mock_vlc.get_state.return_value = vlc.State.Ended
+    assert player.has_failed() is False
+    mock_vlc.get_state.return_value = vlc.State.Playing
+    assert player.has_failed() is False
+
+
 def test_has_ended_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) -> None:
     mock_vlc.get_state.side_effect = RuntimeError("libvlc boom")
     player = VLCPlayer()
     with pytest.raises(PlaybackError) as exc_info:
         player.has_ended()
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
+def test_has_failed_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_state.side_effect = RuntimeError("libvlc boom")
+    player = VLCPlayer()
+    with pytest.raises(PlaybackError) as exc_info:
+        player.has_failed()
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 

@@ -7,6 +7,7 @@ from ytmusic_cli.consts import (
     MAX_SEARCH_LIMIT,
     MAX_VOLUME,
     MIN_SEARCH_LIMIT,
+    PLAYBACK_STALL_TICKS,
 )
 from ytmusic_cli.exceptions import ValidationError
 from ytmusic_cli.music.ports import (
@@ -17,8 +18,11 @@ from ytmusic_cli.music.ports import (
 )
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import (
+    AudioStream,
     PlaybackState,
     PlaybackStatus,
+    PlaybackTick,
+    PlaybackTickAction,
     Playlist,
     Song,
     User,
@@ -52,44 +56,88 @@ class PlaybackService:
         self._player = player
         self._source = source
         self._state = state
+        self._stall_ticks = 0
+        self._engine_started = False
+
+    def resolve_stream(self, song: Song) -> AudioStream:
+        self._align_queue_for_play(song)
+        return self._source.get_stream(song["video_id"])
+
+    def start_stream(self, song: Song, stream: AudioStream) -> None:
+        self._player.play(stream)
+        current = self._state.playback_state.get()
+        self._player.set_volume(current["volume"])
+        self._stall_ticks = 0
+        self._engine_started = False
+        self._state.current_song.set(song)
+        self._state.playback_state.set(
+            PlaybackState(
+                status=PlaybackStatus.PLAYING,
+                volume=current["volume"],
+                position=0.0,
+                duration=song["duration"],
+            )
+        )
 
     def play_song(self, song: Song) -> None:
-        self._align_queue_for_play(song)
-        self._start_playback(song)
+        stream = self.resolve_stream(song)
+        self.start_stream(song, stream)
+
+    def enqueue(self, song: Song) -> None:
+        self._state.queue.set([*self._state.queue.get(), song])
 
     def append_to_queue(self, song: Song) -> None:
-        queue = [*self._state.queue.get(), song]
-        self._state.queue.set(queue)
+        self.enqueue(song)
         status = self._state.playback_state.get()["status"]
         if status == PlaybackStatus.STOPPED:
             self.play_song(song)
 
-    def play_queue(self, songs: list[Song], start_index: int = 0) -> None:
+    def set_queue(self, songs: list[Song], start_index: int = 0) -> Song:
         if not songs:
             raise ValidationError("Playlist is empty")
         index = max(0, min(start_index, len(songs) - 1))
         self._state.queue.set(list(songs))
         self._state.queue_index.set(index)
-        self._start_playback(songs[index])
+        return songs[index]
 
-    def play_next(self) -> None:
+    def play_queue(self, songs: list[Song], start_index: int = 0) -> None:
+        song = self.set_queue(songs, start_index)
+        stream = self._source.get_stream(song["video_id"])
+        self.start_stream(song, stream)
+
+    def advance_to_next(self) -> Song | None:
         queue = self._state.queue.get()
         next_index = self._state.queue_index.get() + 1
         if 0 <= next_index < len(queue):
             self._state.queue_index.set(next_index)
-            self._start_playback(queue[next_index])
-            return
+            return queue[next_index]
         if self._state.playback_state.get()["status"] == PlaybackStatus.PLAYING:
             self._patch_playback(status=PlaybackStatus.STOPPED)
+        return None
 
-    def play_previous(self) -> None:
+    def play_next(self) -> None:
+        song = self.advance_to_next()
+        if song is None:
+            return
+        stream = self._source.get_stream(song["video_id"])
+        self.start_stream(song, stream)
+
+    def advance_to_previous(self) -> Song | None:
         queue = self._state.queue.get()
         prev_index = self._state.queue_index.get() - 1
         if prev_index >= 0 and queue:
             self._state.queue_index.set(prev_index)
-            self._start_playback(queue[prev_index])
+            return queue[prev_index]
+        return None
 
-    def remove_from_queue(self, index: int) -> None:
+    def play_previous(self) -> None:
+        song = self.advance_to_previous()
+        if song is None:
+            return
+        stream = self._source.get_stream(song["video_id"])
+        self.start_stream(song, stream)
+
+    def remove_from_queue(self, index: int) -> Song | None:
         queue = list(self._state.queue.get())
         if index < 0 or index >= len(queue):
             raise ValidationError("Queue index out of range")
@@ -98,14 +146,16 @@ class PlaybackService:
         self._state.queue.set(queue)
         if not queue:
             self._state.queue_index.set(-1)
-            return
+            return None
         if index < current:
             self._state.queue_index.set(current - 1)
-        elif index == current:
+            return None
+        if index == current:
             new_index = min(index, len(queue) - 1)
             self._state.queue_index.set(new_index)
             if self._state.playback_state.get()["status"] == PlaybackStatus.PLAYING:
-                self._start_playback(queue[new_index])
+                return queue[new_index]
+        return None
 
     def toggle(self) -> None:
         current = self._state.playback_state.get()
@@ -136,17 +186,53 @@ class PlaybackService:
     def volume_down(self) -> None:
         self._adjust_volume(-_VOLUME_STEP)
 
-    def sync_playback(self) -> None:
+    def sync_playback(self) -> PlaybackTick:
         current = self._state.playback_state.get()
         if current["status"] != PlaybackStatus.PLAYING:
-            return
+            return PlaybackTick(PlaybackTickAction.IDLE)
+        failure = self._tick_failure()
+        if failure is not None:
+            return failure
         if self._player.has_ended():
-            self.play_next()
-            return
-        position = self._player.get_position()
-        if int(position) == int(current["position"]):
-            return
-        self._patch_playback(position=position)
+            return self._tick_ended()
+        if self._player.is_playing():
+            self._stall_ticks = 0
+            self._engine_started = True
+            if self._player.get_volume() != current["volume"]:
+                self._player.set_volume(current["volume"])
+            position = self._player.get_position()
+            if int(position) != int(current["position"]):
+                self._patch_playback(position=position)
+            return PlaybackTick(PlaybackTickAction.IDLE)
+        self._stall_ticks += 1
+        if self._stall_ticks >= PLAYBACK_STALL_TICKS:
+            return self._fail_playback("Playback failed to start")
+        return PlaybackTick(PlaybackTickAction.IDLE)
+
+    def _tick_failure(self) -> PlaybackTick | None:
+        if not self._player.has_failed():
+            return None
+        return self._fail_playback("Playback failed")
+
+    def _tick_ended(self) -> PlaybackTick:
+        self._stall_ticks = 0
+        if not self._engine_started:
+            return self._fail_playback("Playback failed to start")
+        if self._has_next_track():
+            return PlaybackTick(PlaybackTickAction.ENDED)
+        self._patch_playback(status=PlaybackStatus.STOPPED)
+        return PlaybackTick(PlaybackTickAction.IDLE)
+
+    def _fail_playback(self, message: str) -> PlaybackTick:
+        self._player.stop()
+        self._stall_ticks = 0
+        self._patch_playback(status=PlaybackStatus.STOPPED)
+        return PlaybackTick(PlaybackTickAction.FAILED, message)
+
+    def _has_next_track(self) -> bool:
+        queue = self._state.queue.get()
+        next_index = self._state.queue_index.get() + 1
+        return 0 <= next_index < len(queue)
 
     def _align_queue_for_play(self, song: Song) -> None:
         queue = list(self._state.queue.get())
@@ -158,21 +244,6 @@ class PlaybackService:
             if item["video_id"] == song["video_id"]:
                 self._state.queue_index.set(index)
                 return
-
-    def _start_playback(self, song: Song) -> None:
-        stream = self._source.get_stream(song["video_id"])
-        self._player.play(stream)
-        current = self._state.playback_state.get()
-        self._player.set_volume(current["volume"])
-        self._state.current_song.set(song)
-        self._state.playback_state.set(
-            PlaybackState(
-                status=PlaybackStatus.PLAYING,
-                volume=current["volume"],
-                position=0.0,
-                duration=song["duration"],
-            )
-        )
 
     def _adjust_volume(self, delta: int) -> None:
         current = self._state.playback_state.get()

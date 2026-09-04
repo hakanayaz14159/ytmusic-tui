@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import TypedDict
+from typing import NamedTuple, TypedDict
 
 
 class Song(TypedDict):
@@ -44,3 +44,14 @@ class PlaybackState(TypedDict):
     volume: int
     position: float
     duration: int
+
+
+class PlaybackTickAction(StrEnum):
+    IDLE = "idle"
+    ENDED = "ended"
+    FAILED = "failed"
+
+
+class PlaybackTick(NamedTuple):
+    action: PlaybackTickAction
+    message: str | None = None

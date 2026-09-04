@@ -5,6 +5,19 @@ import vlc
 from ytmusic_cli.exceptions import PlaybackError
 from ytmusic_cli.music.types import AudioStream
 
+_SKIP_HTTP_HEADERS = frozenset(
+    {
+        "accept-encoding",
+        "content-encoding",
+        "connection",
+        "keep-alive",
+        "transfer-encoding",
+        "te",
+        "host",
+        "content-length",
+    }
+)
+
 
 class VLCPlayer:
     """AudioPlayerProtocol implementation using python-vlc / libvlc."""
@@ -22,17 +35,16 @@ class VLCPlayer:
             media = self._instance.media_new(url)
 
             headers = stream.get("http_headers") or {}
-            user_agent = headers.get("User-Agent") or headers.get("user-agent")
-            referrer = (
-                headers.get("Referer")
-                or headers.get("referer")
-                or headers.get("Referrer")
-                or headers.get("referrer")
-            )
-            if user_agent:
-                media.add_option(f":http-user-agent={user_agent}")
-            if referrer:
-                media.add_option(f":http-referrer={referrer}")
+            for name, value in headers.items():
+                lowered = name.lower()
+                if lowered in _SKIP_HTTP_HEADERS:
+                    continue
+                if lowered == "user-agent":
+                    media.add_option(f":http-user-agent={value}")
+                elif lowered in ("referer", "referrer"):
+                    media.add_option(f":http-referrer={value}")
+                else:
+                    media.add_option(f":http-extra-header={name}: {value}")
 
             self._player.set_media(media)
             result = self._player.play()
@@ -85,6 +97,12 @@ class VLCPlayer:
 
     def has_ended(self) -> bool:
         try:
-            return self._player.get_state() in (vlc.State.Ended, vlc.State.Error)
+            return self._player.get_state() == vlc.State.Ended
         except Exception as err:
             raise PlaybackError("Failed to query playback end state") from err
+
+    def has_failed(self) -> bool:
+        try:
+            return self._player.get_state() == vlc.State.Error
+        except Exception as err:
+            raise PlaybackError("Failed to query playback error state") from err

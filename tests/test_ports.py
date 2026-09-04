@@ -60,6 +60,9 @@ def test_complete_dummy_player_satisfies_protocol() -> None:
         def has_ended(self) -> bool:
             return False
 
+        def has_failed(self) -> bool:
+            return False
+
     assert isinstance(DummyPlayer(), AudioPlayerProtocol)
 
 

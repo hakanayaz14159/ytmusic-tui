@@ -5,7 +5,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
 from textual.widgets import Label
 
-from ytmusic_cli.consts import WIDE_LAYOUT_COLUMNS
+from ytmusic_cli.consts import COMPACT_HEIGHT_ROWS, WIDE_LAYOUT_COLUMNS
 from ytmusic_cli.tui.modes.playlists import PlaylistsMode
 from ytmusic_cli.tui.modes.profiles import ProfilesMode
 from ytmusic_cli.tui.modes.queue import QueueMode
@@ -61,15 +61,18 @@ class AppShell(Vertical):
             with Vertical(id="queue_pane"):
                 yield Label("Queue")
                 yield QueueList(id="side_queue")
-        yield NowPlaying(id="now_playing")
-        yield StatusBar(id="status_bar")
+        with Vertical(id="chrome"):
+            yield NowPlaying(id="now_playing")
+            yield StatusBar(id="status_bar")
 
     def on_mount(self) -> None:
         self.switch_mode("search")
+        self._apply_compact_chrome()
         self.query_one(SearchMode).focus_query()
 
     def on_resize(self) -> None:
         self._apply_wide_layout()
+        self._apply_compact_chrome()
 
     def switch_mode(self, mode_id: str) -> None:
         if mode_id not in MODES:
@@ -99,3 +102,7 @@ class AppShell(Vertical):
         show = wide and self.current_mode != "queue"
         pane.set_class(show, "-visible")
         pane.display = show
+
+    def _apply_compact_chrome(self) -> None:
+        compact = self.size.height < COMPACT_HEIGHT_ROWS
+        self.query_one("#chrome", Vertical).set_class(compact, "-compact")

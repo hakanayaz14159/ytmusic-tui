@@ -7,6 +7,7 @@ from pytest_mock import MockerFixture
 from textual.widgets import Input
 
 from ytmusic_cli.main import YTMusicApp
+from ytmusic_cli.music.types import PlaybackTick, PlaybackTickAction
 from ytmusic_cli.tui.modals.help import HelpModal
 from ytmusic_cli.tui.modes.search import SearchMode
 from ytmusic_cli.tui.shell import AppShell
@@ -227,4 +228,40 @@ def test_on_mount_schedules_playback_sync_interval(
 
     app.on_mount()
 
-    set_interval.assert_called_once_with(1.0, app.playback_service.sync_playback)
+    set_interval.assert_called_once_with(1.0, app._on_playback_tick)
+
+
+def test_playback_tick_notifies_on_engine_failure(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    mock_playback_service.sync_playback.return_value = PlaybackTick(
+        PlaybackTickAction.FAILED,
+        "Playback failed to start",
+    )
+    app = _make_app(mock_search_service, mock_playback_service)
+    notify = mocker.patch.object(app, "notify")
+
+    app._on_playback_tick()
+
+    notify.assert_called_once()
+    assert notify.call_args[0][0] == "Playback failed to start"
+    assert notify.call_args[1]["severity"] == "error"
+    mock_playback_service.advance_to_next.assert_not_called()
+
+
+def test_playback_tick_dispatches_play_next_on_ended(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    mock_playback_service.sync_playback.return_value = PlaybackTick(
+        PlaybackTickAction.ENDED
+    )
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_next = mocker.patch.object(app, "_play_next")
+
+    app._on_playback_tick()
+
+    play_next.assert_called_once()
