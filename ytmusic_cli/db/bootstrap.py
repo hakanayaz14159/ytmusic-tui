@@ -8,6 +8,3 @@ def bootstrap() -> None:
     db.connect()
     db.create_tables([User, Song, Playlist])
     db.close()
-
-
-bootstrap()

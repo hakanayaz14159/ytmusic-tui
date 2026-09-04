@@ -3,6 +3,12 @@ from typing import Any
 
 from yt_dlp import YoutubeDL
 
+from ytmusic_cli.exceptions import (
+    StreamExtractionError,
+    TrackNotFoundError,
+    YTMusicError,
+)
+
 from .types import Song
 
 
@@ -64,7 +70,7 @@ class Youtube:
             List of Song objects matching the search query
 
         Raises:
-            Exception: If search fails or no results found
+            StreamExtractionError: If search fails
         """
         # Check cache first
         cache_key = f"{query}:{max_results}"
@@ -93,8 +99,12 @@ class Youtube:
                 self._search_cache[cache_key] = songs
                 return songs
 
+        except YTMusicError:
+            raise
         except Exception as e:
-            raise Exception(f"Search failed for query '{query}': {e!s}") from e
+            raise StreamExtractionError(
+                f"Search failed for query '{query}': {e!s}"
+            ) from e
 
     def get_stream_url(self, video_id: str, quality: str = "bestaudio") -> str:
         """
@@ -112,7 +122,8 @@ class Youtube:
             Direct URL to the audio stream
 
         Raises:
-            Exception: If URL extraction fails
+            TrackNotFoundError: If video info or audio stream is missing
+            StreamExtractionError: If URL extraction fails
         """
         try:
             video_url = self._normalize_video_url(video_id)
@@ -125,7 +136,9 @@ class Youtube:
                 info = ydl.extract_info(video_url, download=False)
 
                 if not info:
-                    raise Exception(f"Could not extract info for video: {video_id}")
+                    raise TrackNotFoundError(
+                        f"Could not extract info for video: {video_id}"
+                    )
 
                 # Get the URL from the selected format
                 if "url" in info:
@@ -136,10 +149,12 @@ class Youtube:
                         if fmt.get("acodec") != "none" and fmt.get("url"):
                             return fmt["url"]
 
-                raise Exception("No audio stream URL found")
+                raise TrackNotFoundError("No audio stream URL found")
 
+        except YTMusicError:
+            raise
         except Exception as e:
-            raise Exception(
+            raise StreamExtractionError(
                 f"Failed to get stream URL for video {video_id}: {e!s}"
             ) from e
 
@@ -159,7 +174,8 @@ class Youtube:
             Direct stream URL that can be used for streaming
 
         Raises:
-            Exception: If streaming URL extraction fails
+            TrackNotFoundError: If stream URL cannot be resolved
+            StreamExtractionError: If streaming URL extraction fails
 
         Example:
             >>> youtube = Youtube()
@@ -171,12 +187,16 @@ class Youtube:
             stream_url = self.get_stream_url(video_id, quality="bestaudio")
 
             if not stream_url:
-                raise Exception(f"Could not get stream URL for video: {video_id}")
+                raise TrackNotFoundError(
+                    f"Could not get stream URL for video: {video_id}"
+                )
 
             return stream_url
 
+        except YTMusicError:
+            raise
         except Exception as e:
-            raise Exception(
+            raise StreamExtractionError(
                 f"Failed to get stream URL for video {video_id}: {e!s}"
             ) from e
 
@@ -194,7 +214,8 @@ class Youtube:
             - thumbnail, channel_info, audio_quality
 
         Raises:
-            Exception: If metadata extraction fails
+            TrackNotFoundError: If video info cannot be extracted
+            StreamExtractionError: If metadata extraction fails
         """
         # Check cache first
         if video_id in self._metadata_cache:
@@ -207,7 +228,9 @@ class Youtube:
                 info = ydl.extract_info(video_url, download=False)
 
                 if not info:
-                    raise Exception(f"Could not extract info for video: {video_id}")
+                    raise TrackNotFoundError(
+                        f"Could not extract info for video: {video_id}"
+                    )
 
                 # Extract comprehensive metadata
                 metadata = {
@@ -248,8 +271,10 @@ class Youtube:
                 self._metadata_cache[video_id] = metadata
                 return metadata
 
+        except YTMusicError:
+            raise
         except Exception as e:
-            raise Exception(
+            raise StreamExtractionError(
                 f"Failed to get metadata for video {video_id}: {e!s}"
             ) from e
 
@@ -303,8 +328,10 @@ class Youtube:
             else:
                 return {"is_live": False, "live_status": metadata.get("live_status")}
 
+        except YTMusicError:
+            raise
         except Exception as e:
-            raise Exception(
+            raise StreamExtractionError(
                 f"Failed to get live stream info for video {video_id}: {e!s}"
             ) from e
 
@@ -322,7 +349,7 @@ class Youtube:
             Path to the downloaded audio file
 
         Raises:
-            Exception: If download fails
+            StreamExtractionError: If download fails
         """
         try:
             video_url = self._normalize_video_url(video_id)
@@ -350,8 +377,10 @@ class Youtube:
 
                 return filename
 
+        except YTMusicError:
+            raise
         except Exception as e:
-            raise Exception(
+            raise StreamExtractionError(
                 f"Failed to download audio for video {video_id}: {e!s}"
             ) from e
 

@@ -1,0 +1,27 @@
+"""Protocol ports for audio playback and music source adapters."""
+
+from typing import Protocol, runtime_checkable
+
+from ytmusic_cli.music.types import Song
+
+
+@runtime_checkable
+class AudioPlayerProtocol(Protocol):
+    def play(self, url: str) -> None: ...
+
+    def pause(self) -> None: ...
+
+    def stop(self) -> None: ...
+
+    def is_playing(self) -> bool: ...
+
+    def set_volume(self, volume: int) -> None: ...
+
+    def get_volume(self) -> int: ...
+
+
+@runtime_checkable
+class MusicSourceProtocol(Protocol):
+    def search(self, query: str, max_results: int = 10) -> list[Song]: ...
+
+    def get_stream_url(self, video_id: str) -> str: ...

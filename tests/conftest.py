@@ -11,9 +11,18 @@ from pytest_mock import MockerFixture
 from ytmusic_cli.db.playlist import Playlist
 from ytmusic_cli.db.song import Song
 from ytmusic_cli.db.user import User
+from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import Song as SongType
 
 MODELS = [User, Song, Playlist, Playlist.songs.get_through_model()]
+
+
+@pytest.fixture(autouse=True)
+def reset_app_state() -> Generator[None, None, None]:
+    """Reset the AppState singleton before and after every test."""
+    AppState().reset()
+    yield
+    AppState().reset()
 
 
 @pytest.fixture
@@ -51,25 +60,35 @@ def mock_youtube(mocker: MockerFixture) -> MagicMock:
         },
     ]
 
-    mock.search.return_value = sample_songs
-    mock.get_stream_url.return_value = "https://stream.example.com/audio.m4a"
-    mock.stream_sound.return_value = "https://stream.example.com/audio.m4a"
-    mock.get_metadata.return_value = {
-        "id": "sample1",
-        "title": "Sample Song 1",
-        "artist": "Sample Artist 1",
-        "album": "Sample Album 1",
-        "duration": 210,
-        "url": "https://www.youtube.com/watch?v=sample1",
-        "description": "A sample track description",
-        "view_count": 10000,
-        "live_status": "not_live",
-    }
-    mock.download_audio.return_value = "/tmp/downloads/sample1.mp3"
-    mock.get_live_stream_info.return_value = {
-        "is_live": False,
-        "live_status": "not_live",
-    }
+    # Explicit attribute assignment so isinstance(..., MusicSourceProtocol) works
+    # (getattr_static used by runtime_checkable cannot see MagicMock children).
+    mock.search = mocker.MagicMock(return_value=sample_songs)
+    mock.get_stream_url = mocker.MagicMock(
+        return_value="https://stream.example.com/audio.m4a"
+    )
+    mock.stream_sound = mocker.MagicMock(
+        return_value="https://stream.example.com/audio.m4a"
+    )
+    mock.get_metadata = mocker.MagicMock(
+        return_value={
+            "id": "sample1",
+            "title": "Sample Song 1",
+            "artist": "Sample Artist 1",
+            "album": "Sample Album 1",
+            "duration": 210,
+            "url": "https://www.youtube.com/watch?v=sample1",
+            "description": "A sample track description",
+            "view_count": 10000,
+            "live_status": "not_live",
+        }
+    )
+    mock.download_audio = mocker.MagicMock(return_value="/tmp/downloads/sample1.mp3")
+    mock.get_live_stream_info = mocker.MagicMock(
+        return_value={
+            "is_live": False,
+            "live_status": "not_live",
+        }
+    )
     return mock
 
 
@@ -105,12 +124,14 @@ def mock_player(mocker: MockerFixture) -> MagicMock:
     def _get_volume() -> int:
         return int(state["volume"])
 
-    player.play.side_effect = _play
-    player.pause.side_effect = _pause
-    player.stop.side_effect = _stop
-    player.is_playing.side_effect = _is_playing
-    player.set_volume.side_effect = _set_volume
-    player.get_volume.side_effect = _get_volume
+    # Explicit attribute assignment so isinstance(..., AudioPlayerProtocol) works
+    # (getattr_static used by runtime_checkable cannot see MagicMock children).
+    player.play = mocker.MagicMock(side_effect=_play)
+    player.pause = mocker.MagicMock(side_effect=_pause)
+    player.stop = mocker.MagicMock(side_effect=_stop)
+    player.is_playing = mocker.MagicMock(side_effect=_is_playing)
+    player.set_volume = mocker.MagicMock(side_effect=_set_volume)
+    player.get_volume = mocker.MagicMock(side_effect=_get_volume)
     player.state = state
 
     return player

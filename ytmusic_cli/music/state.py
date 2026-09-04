@@ -1,12 +1,27 @@
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Generic, TypeVar
+"""Reactive application state singleton."""
 
+from collections.abc import Callable
+from typing import Generic, TypeVar
+
+from ytmusic_cli.music.types import (
+    PlaybackState,
+    PlaybackStatus,
+    Playlist,
+    Song,
+    User,
+)
 from ytmusic_cli.utils import singleton
 
-if TYPE_CHECKING:
-    from ytmusic_cli.music.types import Playlist, Song, User
-
 T = TypeVar("T")
+
+
+def _default_playback_state() -> PlaybackState:
+    return {
+        "status": PlaybackStatus.STOPPED,
+        "volume": 80,
+        "position": 0.0,
+        "duration": 0,
+    }
 
 
 class AtomicData(Generic[T]):
@@ -54,9 +69,13 @@ class AppState:
         self.current_song: AtomicData[Song | None] = AtomicData(None)
         self.current_user: AtomicData[User | None] = AtomicData(None)
         self.current_playlist: AtomicData[Playlist | None] = AtomicData(None)
+        self.playback_state: AtomicData[PlaybackState] = AtomicData(
+            _default_playback_state()
+        )
 
     def reset(self) -> None:
         """Reset all state to initial values."""
         self.current_song.set(None)
         self.current_user.set(None)
         self.current_playlist.set(None)
+        self.playback_state.set(_default_playback_state())

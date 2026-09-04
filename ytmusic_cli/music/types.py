@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import TypedDict
 
 
@@ -20,3 +21,16 @@ class User(TypedDict):
     id: int
     username: str
     playlists: list[Playlist]
+
+
+class PlaybackStatus(StrEnum):
+    STOPPED = "stopped"
+    PLAYING = "playing"
+    PAUSED = "paused"
+
+
+class PlaybackState(TypedDict):
+    status: PlaybackStatus
+    volume: int
+    position: float
+    duration: int
