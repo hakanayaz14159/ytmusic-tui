@@ -1,0 +1,90 @@
+---
+description: Test-Driven Development (TDD) workflow, test architecture, and deterministic testing standards
+globs: ["tests/**/*.py", "ytmusic_cli/**/*.py"]
+alwaysApply: true
+---
+
+# Test-Driven Development (TDD) Rules & Discipline
+
+This rule enforces strict Test-Driven Development across all code written in `ytmusic-cli`. Every change, bugfix, or new feature must follow the Red-Green-Refactor cycle.
+
+---
+
+## 1. The Red-Green-Refactor Cycle
+
+1. **RED (Write Failing Test First)**:
+   - Identify the single behavior or contract requirement.
+   - Write a unit, integration, or TUI pilot test before writing any production implementation.
+   - Run the test suite: `uv run pytest path/to/test.py -k test_name`.
+   - **Verify the test fails for the expected reason** (not due to a typo or syntax error).
+
+2. **GREEN (Minimal Code to Pass)**:
+   - Write the simplest, most direct code that fulfills the test assertion.
+   - Do not write speculative helper functions, unused configuration parameters, or premature abstractions.
+   - Run the test suite to confirm green: `uv run pytest`.
+
+3. **REFACTOR (Clean, Type, and Optimize)**:
+   - Eliminate duplication, improve readability, and align with design patterns.
+   - Ensure all type annotations are complete (`uv run mypy ytmusic_cli/ tests/`).
+   - Run linters: `uv run ruff check --fix ytmusic_cli/ tests/`.
+   - Ensure tests remain green after refactoring.
+
+---
+
+## 2. Testing Constraints & Rules
+
+1. **Zero Hard Sleeps (Strictly Enforced)**:
+   - NEVER use `time.sleep()` or `asyncio.sleep()` in test cases.
+   - For Textual TUI tests, use `async with app.run_test() as pilot:` combined with `await pilot.pause()` or event-based checks.
+   - For state transitions, assert on callbacks, mock calls, or deterministic fixture states.
+
+2. **Test Isolation**:
+   - Every database test must use the `test_db` fixture (`SqliteDatabase(":memory:")`).
+   - No test may write to the real filesystem database (`~/.local/share/ytmusic-cli/ytmusic.db`).
+   - State singletons (`AppState`) must be reset in a fixture or teardown via `AppState().reset()`.
+
+3. **External Dependencies are ALWAYS Mocked in Unit Tests**:
+   - YouTube network calls: Use the `mock_youtube` fixture. Tests must run completely offline.
+   - VLC / System audio: Use the `mock_player` fixture. Never emit audio or depend on local sound servers in the automated test suite.
+
+4. **Test Pyramid**:
+   - **Unit Tests (80%)**: Fast, pure in-memory validation of domain models, adapters, and business services (<10ms per test).
+   - **Integration Tests (15%)**: SQLite database interactions, service pipelines with mocked external adapters (<50ms per test).
+   - **TUI Pilot Tests (5%)**: End-to-end Textual app lifecycle, keyboard navigation, and screen rendering (<200ms per test).
+
+---
+
+## 3. Test Structure & Naming Conventions
+
+- **File Naming**: Place tests in `tests/test_<module_or_feature>.py`.
+- **Function Naming**: `test_<target>_<scenario>_<expected_outcome>()` (e.g. `test_search_with_empty_query_raises_validation_error()`).
+- **Structure**: Follow standard **Arrange-Act-Assert (AAA)** with clear visual separation.
+
+```python
+import pytest
+from unittest.mock import MagicMock
+from ytmusic_cli.music.types import Song
+
+def test_playback_service_plays_track_and_updates_state(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> None:
+    # Arrange
+    song: Song = {
+        "id": 101,
+        "title": "Ambient Flow",
+        "artist": "SynthArtist",
+        "album": "Deep Space",
+        "duration": 240,
+        "url": "https://www.youtube.com/watch?v=synth101",
+    }
+    mock_youtube.get_stream_url.return_value = "https://stream.example.com/audio.m4a"
+
+    # Act
+    stream_url = mock_youtube.get_stream_url(song["url"])
+    mock_player.play(stream_url)
+
+    # Assert
+    assert mock_player.is_playing() is True
+    assert mock_player.state["current_url"] == stream_url
+```

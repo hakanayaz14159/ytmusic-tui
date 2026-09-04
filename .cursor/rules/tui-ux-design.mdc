@@ -1,0 +1,78 @@
+---
+description: Textual TUI design system, terminal UX navigation, TCSS styling, and responsive terminal layout
+globs: ["ytmusic_cli/tui/**/*.py", "ytmusic_cli/app.tcss", "ytmusic_cli/theme.py"]
+alwaysApply: true
+---
+
+# TUI UX & UI Design Rules
+
+This document specifies the Terminal User Interface (TUI) architecture, keyboard navigation, and visual styling for `ytmusic-cli`.
+
+---
+
+## 1. Information Architecture & Layout Structure
+
+The TUI maintains a consistent, three-zone visual layout across all screens:
+
+```
++-------------------------------------------------------------+
+| Header: [App Title]                 [Active User / Network] |
++-------------------------------------------------------------+
+|                                                             |
+| Screen Content Area:                                        |
+|   - MainMenu / SearchScreen / PlaylistScreen / Settings     |
+|   - Dynamic views mounted into main container               |
+|                                                             |
++-------------------------------------------------------------+
+| Mini Player / Player Bar:                                   |
+|   ▶ Track Title - Artist [01:45/03:30] [Vol: 80%] [==----]  |
++-------------------------------------------------------------+
+| Footer: [q] Quit  [Space] Play/Pause  [/] Search  [?] Help  |
++-------------------------------------------------------------+
+```
+
+---
+
+## 2. Keyboard-First Navigation Standards
+
+1. **Global Keybindings**:
+   - `q`: Quit the application (or exit current modal/subscreen).
+   - `Space`: Toggle playback (Play / Pause).
+   - `+` / `-`: Volume up / Volume down (in 5% increments).
+   - `/`: Focus search input / open quick search.
+   - `h` or `?`: Open Help modal overlay.
+   - `Esc`: Cancel input, close modal, or navigate to previous screen.
+
+2. **List & Selection Controls**:
+   - `j` or `Down`: Move selection down.
+   - `k` or `Up`: Move selection up.
+   - `Enter`: Activate selected item (play track, open playlist, select menu).
+   - `Tab` / `Shift+Tab`: Cycle through interactive widgets.
+
+---
+
+## 3. Visual Styling & TCSS Standards
+
+1. **Color Palette & Semantic Tokens**:
+   - Background Base: `#0F0F0F` (Dark terminal background).
+   - Surface / Panels: `#1A1A1A` or `#222222`.
+   - Brand / Primary Accent: `#FF0000` (YouTube Red).
+   - Secondary Accent / Focus: `#3EA6FF` (YouTube Blue / Link color).
+   - Text Primary: `#FFFFFF`.
+   - Text Muted / Metadata: `#888888`.
+   - Status Success: `#2BA640`.
+   - Status Warning / Error: `#FF8800` / `#E53935`.
+
+2. **Affordances & Focus States**:
+   - Every interactive widget must have a distinct `:focus` state in `app.tcss`.
+   - Focused list items must display visual highlight (background accent or `>` indicator).
+   - Playing tracks must display an active badge or animated glyph (`▶` or `♫`).
+
+3. **Terminal Size Adaptation**:
+   - Minimum supported terminal dimension: 80 columns x 24 rows.
+   - Graceful degradation: Collapsible ASCII banners on small screens (`height < 30`).
+   - Use Textual's `LoadingIndicator` during async operations.
+
+4. **Notifications & Feedback**:
+   - For user feedback, use `self.notify(message, severity="info"|"warning"|"error")`.
+   - Avoid silent failures; provide instant visual confirmation when an action starts and completes.
