@@ -21,10 +21,16 @@ class Playlist(TypedDict):
     songs: list[Song]
 
 
+class UserSettings(TypedDict):
+    default_volume: int
+    search_limit: int
+
+
 class User(TypedDict):
     id: int
     username: str
-    playlists: list[Playlist]
+    default_volume: int
+    search_limit: int
 
 
 class PlaybackStatus(StrEnum):

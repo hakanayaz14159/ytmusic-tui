@@ -89,3 +89,5 @@ def test_app_state_reset_restores_playback_defaults() -> None:
     assert playback["position"] == 0.0
     assert playback["duration"] == 0
     assert state.current_song.get() is None
+    assert state.queue.get() == []
+    assert state.queue_index.get() == -1

@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from typing import Generic, TypeVar
 
+from ytmusic_cli.consts import DEFAULT_VOLUME
 from ytmusic_cli.music.types import (
     PlaybackState,
     PlaybackStatus,
@@ -18,7 +19,7 @@ T = TypeVar("T")
 def _default_playback_state() -> PlaybackState:
     return {
         "status": PlaybackStatus.STOPPED,
-        "volume": 80,
+        "volume": DEFAULT_VOLUME,
         "position": 0.0,
         "duration": 0,
     }
@@ -72,6 +73,8 @@ class AppState:
         self.playback_state: AtomicData[PlaybackState] = AtomicData(
             _default_playback_state()
         )
+        self.queue: AtomicData[list[Song]] = AtomicData([])
+        self.queue_index: AtomicData[int] = AtomicData(-1)
 
     def reset(self) -> None:
         """Reset all state to initial values."""
@@ -79,3 +82,5 @@ class AppState:
         self.current_user.set(None)
         self.current_playlist.set(None)
         self.playback_state.set(_default_playback_state())
+        self.queue.set([])
+        self.queue_index.set(-1)

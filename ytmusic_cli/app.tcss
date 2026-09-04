@@ -1,119 +1,250 @@
-/* ============================================================================
-   TEXTUAL THEME-BASED STYLING
-   ============================================================================ */
-
 * {
     box-sizing: border-box;
 }
 
-/* Application root styling */
 App {
     background: $background;
     color: $foreground;
 }
 
-/* ============================================================================
-   GLOBAL STYLING
-   ============================================================================ */
+AppShell {
+    width: 100%;
+    height: 100%;
+    layout: vertical;
+}
 
-Header {
+ModeBar {
     dock: top;
+    width: 100%;
+    height: 1;
     background: $panel;
     color: $foreground;
-    border: solid $primary;
-    width: 100%;
-    height: 3;
+    padding: 0 1;
+    align: left middle;
 }
 
-Header > Horizontal {
-    height: 100%;
-    width: 100%;
-}
-
-Header > Horizontal > Static {
-    height: 100%;
+ModeBar .mode-tab {
     width: auto;
+    color: $text-muted;
+    padding: 0 1;
 }
 
-Header #header_title {
-    width: 20%;
+ModeBar .mode-tab.-active {
+    color: $primary;
+    text-style: bold;
 }
 
-Header #song_info {
-    width: 40%;
+ModeBar #mode_user {
+    width: 1fr;
+    content-align: right middle;
+    color: $text-muted;
 }
 
-Header #playlist_info {
-    width: 40%;
+#mode_body {
+    width: 100%;
+    height: 1fr;
 }
 
-Footer {
+#main_column {
+    width: 1fr;
+    height: 100%;
+}
+
+#queue_pane {
+    width: 36;
+    height: 100%;
+    display: none;
+    border-left: solid $border;
+    background: $surface;
+}
+
+#queue_pane.-visible {
+    display: block;
+}
+
+NowPlaying {
     dock: bottom;
+    width: 100%;
+    height: 2;
     background: $panel;
     color: $foreground;
-    border: solid $primary;
+    padding: 0 1;
 }
 
-/* ============================================================================
-   MAIN MENU STYLING
-   ============================================================================ */
+NowPlaying.-compact {
+    height: 1;
+}
 
-/* Main menu container */
-MainMenu {
+NowPlaying #np_title {
     width: 100%;
-    height: auto;
-    background: transparent;
-    border: none;
-    padding: 1;
-    align: center middle;
+    color: $success;
+}
+
+NowPlaying #np_detail {
+    width: 100%;
+    color: $text-muted;
+}
+
+NowPlaying.-compact #np_detail {
+    display: none;
+}
+
+StatusBar {
+    dock: bottom;
+    width: 100%;
+    height: 1;
+    background: $panel;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+SearchMode,
+QueueMode,
+ProfilesMode,
+SettingsMode {
+    width: 1fr;
+    height: 1fr;
+    layout: vertical;
+    overflow: hidden hidden;
+    background: $background;
+}
+
+PlaylistsMode {
+    width: 1fr;
+    height: 1fr;
+    layout: horizontal;
+    overflow: hidden hidden;
+    background: $background;
+}
+
+SearchMode #search_input {
+    margin: 1 1 0 1;
+    border: solid $border;
+}
+
+SearchMode #search_input:focus {
+    border: tall $accent;
+}
+
+SearchMode #search_empty {
+    height: 1fr;
+    color: $text-muted;
     content-align: center middle;
 }
 
-/* Option list within main menu */
-MainMenu > OptionList {
-    width: 50%;
-    height: auto;
+SearchMode #search_loading {
+    display: none;
+    height: 3;
+    margin: 0 1;
+}
+
+SearchMode #search_loading.-visible {
+    display: block;
+}
+
+SongTable {
+    width: 100%;
+    height: 1fr;
     background: $surface;
-    color: $foreground;
 }
 
-/* Default option styling */
-MainMenu > OptionList > .option-list--option {
-    width: 100%;
-    height: auto;
-    text-align: center;
-    background: transparent;
-    color: $foreground;
+SongTable #song_table_header {
+    color: $text-muted;
+    padding: 0 1;
+    height: 1;
 }
 
-/* Highlighted/selected option */
-MainMenu > OptionList > .option-list--option-highlighted {
-    width: 100%;
-    height: auto;
-    text-align: center;
+SongTable ListView {
+    height: 1fr;
+    border: none;
+    background: $surface;
+}
+
+SongTable ListView:focus {
+    border: tall $accent;
+}
+
+SongTable ListView > ListItem.--highlight {
     background: $primary;
     color: $background;
 }
 
-/* Hovered option */
-MainMenu > OptionList > .option-list--option-hover {
-    width: 100%;
-    height: auto;
-    text-align: center;
-    background: $primary-lighten-1;
-    color: $background;
+QueueMode #queue_empty,
+PlaylistsMode #playlists_empty,
+ProfilesMode #profiles_empty {
+    height: 1fr;
+    color: $text-muted;
+    content-align: center middle;
+    padding: 1;
 }
 
-/* ============================================================================
-   ASCII TITLE
-   ============================================================================ */
+PlaylistsMode {
+    layout: horizontal;
+}
 
-AsciiTitle {
-    background: transparent;
-    width: auto;
+PlaylistsMode #playlist_list {
+    width: 28;
+    height: 100%;
+    border-right: solid $border;
+    background: $surface;
+}
+
+PlaylistsMode #playlist_list:focus {
+    border: tall $accent;
+}
+
+PlaylistsMode #playlist_tracks {
+    width: 1fr;
+    height: 100%;
+}
+
+ProfilesMode OptionList,
+SettingsMode OptionList {
+    width: 100%;
+    height: 1fr;
+    background: $surface;
+    border: none;
+}
+
+ProfilesMode OptionList:focus,
+SettingsMode OptionList:focus {
+    border: tall $accent;
+}
+
+HelpModal {
+    align: center middle;
+}
+
+HelpModal #help_panel {
+    width: 72;
     height: auto;
-    text-align: center;
-    content-align: center middle;
-    color: $primary;
-    text-style: bold;
+    max-height: 22;
+    background: $panel;
+    border: solid $primary;
+    padding: 1 2;
+}
+
+PromptModal,
+ConfirmModal,
+AddToPlaylistModal {
+    align: center middle;
+}
+
+PromptModal #prompt_panel,
+ConfirmModal #confirm_panel,
+AddToPlaylistModal #picker_panel {
+    width: 56;
+    height: auto;
+    background: $panel;
+    border: solid $primary;
+    padding: 1 2;
+}
+
+PromptModal Input {
+    border: solid $border;
+    margin-top: 1;
+}
+
+PromptModal Input:focus {
+    border: tall $accent;
 }

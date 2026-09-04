@@ -1,4 +1,4 @@
-"""Textual pilot tests for the PlayerBar mini-player widget."""
+"""Textual pilot tests for the NowPlaying widget."""
 
 import threading
 
@@ -8,42 +8,37 @@ from textual.widgets import Static
 
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import PlaybackStatus, Song
-from ytmusic_cli.tui.player_bar import PlayerBar
+from ytmusic_cli.tui.widgets.now_playing import NowPlaying
 
 
-class PlayerBarApp(App[None]):
-    """Minimal app that mounts only PlayerBar for isolated pilot tests."""
-
+class NowPlayingApp(App[None]):
     def compose(self) -> ComposeResult:
-        yield PlayerBar()
+        yield NowPlaying(id="now_playing")
 
 
 def _bar_text(app: App[None]) -> str:
-    """Concatenate PlayerBar child Static contents for assertions."""
-    bar = app.query_one(PlayerBar)
+    bar = app.query_one(NowPlaying)
     parts = [
-        str(bar.query_one("#player_status", Static).content),
-        str(bar.query_one("#player_track", Static).content),
-        str(bar.query_one("#player_progress", Static).content),
-        str(bar.query_one("#player_volume", Static).content),
+        str(bar.query_one("#np_title", Static).content),
+        str(bar.query_one("#np_detail", Static).content),
     ]
     return " ".join(parts)
 
 
 @pytest.mark.asyncio
-async def test_player_bar_initial_display_shows_stopped_empty_state() -> None:
-    app = PlayerBarApp()
+async def test_now_playing_initial_display_shows_stopped_empty_state() -> None:
+    app = NowPlayingApp()
     async with app.run_test() as pilot:
         await pilot.pause()
         text = _bar_text(app)
         assert "■" in text
         assert "[No track playing]" in text
-        assert "[Vol: 80%]" in text
+        assert "80%" in text
 
 
 @pytest.mark.asyncio
-async def test_player_bar_updates_when_app_state_changes() -> None:
-    app = PlayerBarApp()
+async def test_now_playing_updates_when_app_state_changes() -> None:
+    app = NowPlayingApp()
     song: Song = {
         "video_id": "synth42",
         "title": "Ambient Flow",
@@ -68,8 +63,9 @@ async def test_player_bar_updates_when_app_state_changes() -> None:
 
         text = _bar_text(app)
         assert "▶" in text
-        assert "Ambient Flow - SynthArtist" in text
-        assert "[Vol: 65%]" in text
+        assert "Ambient Flow" in text
+        assert "SynthArtist" in text
+        assert "65%" in text
         assert "00:45 / 03:30" in text
 
         state.playback_state.set(
@@ -86,22 +82,21 @@ async def test_player_bar_updates_when_app_state_changes() -> None:
 
 
 @pytest.mark.asyncio
-async def test_player_bar_unmount_unsubscribes_without_errors() -> None:
-    app = PlayerBarApp()
+async def test_now_playing_unmount_unsubscribes_without_errors() -> None:
+    app = NowPlayingApp()
     async with app.run_test() as pilot:
         await pilot.pause()
         state = AppState()
         assert len(state.current_song._subscribers) == 1
         assert len(state.playback_state._subscribers) == 1
 
-        bar = app.query_one(PlayerBar)
+        bar = app.query_one(NowPlaying)
         await bar.remove()
         await pilot.pause()
 
         assert len(state.current_song._subscribers) == 0
         assert len(state.playback_state._subscribers) == 0
 
-        # Setting state after unmount must not raise
         state.current_song.set(None)
         state.playback_state.set(
             {
@@ -115,8 +110,8 @@ async def test_player_bar_unmount_unsubscribes_without_errors() -> None:
 
 
 @pytest.mark.asyncio
-async def test_player_bar_updates_when_state_changed_from_worker_thread() -> None:
-    app = PlayerBarApp()
+async def test_now_playing_updates_when_state_changed_from_worker_thread() -> None:
+    app = NowPlayingApp()
     song: Song = {
         "video_id": "thread99",
         "title": "Thread Song",
@@ -148,5 +143,5 @@ async def test_player_bar_updates_when_state_changed_from_worker_thread() -> Non
 
         text = _bar_text(app)
         assert "▶" in text
-        assert "Thread Song - Thread Artist" in text
-        assert "[Vol: 75%]" in text
+        assert "Thread Song" in text
+        assert "75%" in text

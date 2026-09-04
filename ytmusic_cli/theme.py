@@ -1,50 +1,43 @@
-"""Custom theme for YTMusic CLI application."""
+"""Ink / Amber / Mint theme for the YTMusic CLI player."""
 
 from textual.theme import Theme
 
-# Create the YTMusic theme based on #81D4FA primary color
 ytmusic_theme = Theme(
     name="ytmusic",
-    primary="#81D4FA",  # Light blue - your primary color
-    secondary="#FFB74D",  # Orange - complementary
-    accent="#29B6F6",  # Darker blue - for accents
-    warning="#FFA726",  # Orange warning
-    error="#EF5350",  # Red error
-    success="#66BB6A",  # Green success
-    foreground="#F0F6FC",  # Light text
-    background="#0D1117",  # Dark background
-    surface="#21262D",  # Slightly lighter than background
-    panel="#30363D",  # UI panels
-    dark=True,  # This is a dark theme
+    primary="#E0B15A",
+    secondary="#6EC8C0",
+    accent="#6EC8C0",
+    warning="#D89B4A",
+    error="#E06C75",
+    success="#3DDC97",
+    foreground="#E8EDF4",
+    background="#0B0E14",
+    surface="#141A22",
+    panel="#1B2330",
+    dark=True,
     variables={
-        # Custom scrollbar colors
-        "scrollbar": "#30363D",
-        "scrollbar-hover": "#484F58",
-        "scrollbar-active": "#81D4FA",
-        "scrollbar-background": "#161B22",
-        # Custom border colors
-        "border": "#81D4FA",
-        "border-blurred": "#30363D",
-        # Custom cursor colors
-        "block-cursor-background": "#81D4FA",
-        "block-cursor-foreground": "#0D1117",
+        "text-muted": "#8B95A5",
+        "border": "#2A3444",
+        "border-blurred": "#2A3444",
+        "scrollbar": "#1B2330",
+        "scrollbar-hover": "#2A3444",
+        "scrollbar-active": "#E0B15A",
+        "scrollbar-background": "#0B0E14",
+        "block-cursor-background": "#E0B15A",
+        "block-cursor-foreground": "#0B0E14",
         "block-cursor-text-style": "bold",
-        "block-cursor-blurred-background": "#81D4FA40",  # 40% opacity
-        # Input styling
-        "input-cursor-background": "#F0F6FC",
-        "input-cursor-foreground": "#0D1117",
-        "input-selection-background": "#81D4FA40",
-        # Footer styling
-        "footer-foreground": "#F0F6FC",
-        "footer-background": "#21262D",
-        "footer-key-foreground": "#81D4FA",
+        "block-cursor-blurred-background": "#E0B15A40",
+        "input-cursor-background": "#E8EDF4",
+        "input-cursor-foreground": "#0B0E14",
+        "input-selection-background": "#E0B15A40",
+        "footer-foreground": "#E8EDF4",
+        "footer-background": "#1B2330",
+        "footer-key-foreground": "#E0B15A",
         "footer-key-background": "transparent",
-        # Button styling
-        "button-foreground": "#F0F6FC",
-        "button-color-foreground": "#0D1117",
-        # Link styling
-        "link-color": "#81D4FA",
-        "link-color-hover": "#B3E7FC",
-        "link-background-hover": "#81D4FA20",
+        "button-foreground": "#E8EDF4",
+        "button-color-foreground": "#0B0E14",
+        "link-color": "#6EC8C0",
+        "link-color-hover": "#8ED9D3",
+        "link-background-hover": "#6EC8C020",
     },
 )

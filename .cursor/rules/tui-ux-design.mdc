@@ -6,73 +6,81 @@ alwaysApply: true
 
 # TUI UX & UI Design Rules
 
-This document specifies the Terminal User Interface (TUI) architecture, keyboard navigation, and visual styling for `ytmusic-cli`.
+The player is a **search-first shell**, not a splash menu. Chrome (mode bar, now-playing, status) is always visible.
 
 ---
 
-## 1. Information Architecture & Layout Structure
+## 1. Information Architecture
 
-The TUI maintains a consistent, three-zone visual layout across all screens:
+Five modes in one `AppShell`. Only Help and small prompts are `ModalScreen`.
 
 ```
-+-------------------------------------------------------------+
-| Header: [App Title]                 [Active User / Network] |
-+-------------------------------------------------------------+
-|                                                             |
-| Screen Content Area:                                        |
-|   - MainMenu / SearchScreen / PlaylistScreen / Settings     |
-|   - Dynamic views mounted into main container               |
-|                                                             |
-+-------------------------------------------------------------+
-| Mini Player / Player Bar:                                   |
-|   ▶ Track Title - Artist [01:45/03:30] [Vol: 80%] [==----]  |
-+-------------------------------------------------------------+
-| Footer: [q] Quit  [Space] Play/Pause  [/] Search  [?] Help  |
-+-------------------------------------------------------------+
+Search  Queue  Playlists  Profiles  Settings              <user>
+────────────────────────────────────────────────────────────────
+ mode body (search table / queue / playlists / …)
+────────────────────────────────────────────────────────────────
+▶ Title — Artist
+████░░░░  01:45 / 03:18                         ▮▮▮▮▯▯  80%
+────────────────────────────────────────────────────────────────
+enter play   a queue   space pause   / search   ? help
 ```
 
----
-
-## 2. Keyboard-First Navigation Standards
-
-1. **Global Keybindings**:
-   - `q`: Quit the application (or exit current modal/subscreen).
-   - `Space`: Toggle playback (Play / Pause).
-   - `+` / `-`: Volume up / Volume down (in 5% increments).
-   - `/`: Focus search input / open quick search.
-   - `h` or `?`: Open Help modal overlay.
-   - `Esc`: Cancel input, close modal, or navigate to previous screen.
-
-2. **List & Selection Controls**:
-   - `j` or `Down`: Move selection down.
-   - `k` or `Up`: Move selection up.
-   - `Enter`: Activate selected item (play track, open playlist, select menu).
-   - `Tab` / `Shift+Tab`: Cycle through interactive widgets.
+- Landing mode is **Search**.
+- Now-playing is always mounted. Modes never cover it.
+- At width >= 110, a Queue pane docks beside the active mode (hidden when Queue is the mode).
+- No ASCII wordmark. No main menu.
 
 ---
 
-## 3. Visual Styling & TCSS Standards
+## 2. Keyboard
 
-1. **Color Palette & Semantic Tokens**:
-   - Background Base: `#0F0F0F` (Dark terminal background).
-   - Surface / Panels: `#1A1A1A` or `#222222`.
-   - Brand / Primary Accent: `#FF0000` (YouTube Red).
-   - Secondary Accent / Focus: `#3EA6FF` (YouTube Blue / Link color).
-   - Text Primary: `#FFFFFF`.
-   - Text Muted / Metadata: `#888888`.
-   - Status Success: `#2BA640`.
-   - Status Warning / Error: `#FF8800` / `#E53935`.
+**Global**
 
-2. **Affordances & Focus States**:
-   - Every interactive widget must have a distinct `:focus` state in `app.tcss`.
-   - Focused list items must display visual highlight (background accent or `>` indicator).
-   - Playing tracks must display an active badge or animated glyph (`▶` or `♫`).
+- `1`–`5`: Search, Queue, Playlists, Profiles, Settings
+- `Tab` / `Shift+Tab`: cycle modes
+- `/`: Search mode and focus the query field
+- `Space`: play / pause (types a space when an Input is focused)
+- `+` / `=` / `-`: volume in 5% steps
+- `>` / `<`: next / previous in the queue
+- `?`: Help modal
+- `q`: quit when focus is not an Input; `Ctrl+q` always quits
+- `Esc`: blur search input or dismiss a modal (does not change mode)
 
-3. **Terminal Size Adaptation**:
-   - Minimum supported terminal dimension: 80 columns x 24 rows.
-   - Graceful degradation: Collapsible ASCII banners on small screens (`height < 30`).
-   - Use Textual's `LoadingIndicator` during async operations.
+**Lists**
 
-4. **Notifications & Feedback**:
-   - For user feedback, use `self.notify(message, severity="info"|"warning"|"error")`.
-   - Avoid silent failures; provide instant visual confirmation when an action starts and completes.
+- `j` / `k` or arrows: move
+- `Enter`: play now (playlist Enter loads that list into the queue)
+- `a`: append to queue
+- `A`: add to a playlist
+- `d`: remove a queue item or playlist track
+- `n`: new playlist or profile (those modes only)
+- `s`: save settings (Settings mode only)
+
+---
+
+## 3. Visual system (Ink / Amber / Mint)
+
+Independent of YouTube. Dark-only. Tokens live in `theme.py` and `app.tcss` only — no hex in Python widgets.
+
+- Background: `#0B0E14`
+- Surface: `#141A22`
+- Panel: `#1B2330`
+- Foreground: `#E8EDF4`
+- Muted: `#8B95A5`
+- Primary (selection, active mode): `#E0B15A`
+- Focus: `#6EC8C0`
+- Playing / success: `#3DDC97`
+- Warning: `#D89B4A`
+- Error: `#E06C75`
+- Border: `#2A3444`
+
+Focus: `border: tall $accent` on the focused list or input.
+Playing row: mint `♫` glyph.
+Minimum terminal: 80x24. Now-playing collapses to one line when height < 24.
+
+---
+
+## 4. Feedback
+
+- Use `self.notify(..., severity="information"|"warning"|"error")`.
+- No advertised key that `bell()`s. Empty states use copy, not silence.

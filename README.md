@@ -78,16 +78,25 @@ uv run ytmusic-cli --help
 
 ### Key Bindings
 
-| Key           | Action                              |
-| ------------- | ----------------------------------- |
-| `q`           | Quit application                    |
-| `a`           | Switch / manage accounts & profiles |
-| `p`           | Open playlists                      |
-| `s`           | Search tracks                       |
-| `h`           | Show help dialog                    |
-| `Space`       | Play / Pause current track          |
-| `Up` / `Down` | Navigate menu and lists             |
-| `Enter`       | Select / activate item              |
+| Key             | Action                                           |
+| --------------- | ------------------------------------------------ |
+| `/`             | Search and focus the query field                 |
+| `1`–`5`         | Search / Queue / Playlists / Profiles / Settings |
+| `Tab`           | Next mode                                        |
+| `Space`         | Play / pause                                     |
+| `+` / `=` / `-` | Volume up / down                                 |
+| `>` / `<`       | Next / previous in queue                         |
+| `j` / `k`       | Move in lists                                    |
+| `Enter`         | Play the highlighted track                       |
+| `a`             | Append highlighted track to the queue            |
+| `A`             | Add highlighted track to a playlist              |
+| `d`             | Remove from queue or playlist                    |
+| `n`             | New playlist or profile                          |
+| `s`             | Save settings                                    |
+| `?`             | Help                                             |
+| `Esc`           | Blur search / close a dialog                     |
+| `q`             | Quit (when not typing)                           |
+| `Ctrl+q`        | Quit                                             |
 
 ---
 
@@ -105,10 +114,11 @@ ytmusic_cli/
 │   ├── types.py    # Domain models and TypedDicts
 │   ├── youtube.py  # yt-dlp adapter for search, extraction, and downloads
 │   └── state.py    # Reactive application state
-├── tui/            # Presentation layer (Textual widgets & screens)
-│   ├── header.py   # Top status bar and playback info
-│   ├── main_menu.py# Main navigation menu
-│   └── theme.py    # Custom color palette and styling
+├── tui/            # Presentation layer (Textual shell, modes, widgets)
+│   ├── shell.py    # Persistent chrome: modes, now-playing, status
+│   ├── modes/      # Search, Queue, Playlists, Profiles, Settings
+│   ├── widgets/    # Mode bar, song table, now playing
+│   └── modals/     # Help, prompts, confirmations
 └── main.py         # Application entry point and CLI commands
 ```
 

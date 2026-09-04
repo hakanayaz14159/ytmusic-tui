@@ -3,15 +3,15 @@
 from unittest.mock import MagicMock
 
 import pytest
-from textual.widgets import Input, ListView, Static
+from textual.widgets import Input, Static
 
 from ytmusic_cli.exceptions import StreamExtractionError
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.services import PlaybackService, SearchService
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import AudioStream, PlaybackStatus
-from ytmusic_cli.tui.player_bar import PlayerBar
-from ytmusic_cli.tui.search_screen import SearchScreen
+from ytmusic_cli.tui.widgets.now_playing import NowPlaying
+from ytmusic_cli.tui.widgets.song_table import SongTable
 
 
 @pytest.mark.asyncio
@@ -42,45 +42,35 @@ async def test_search_and_play_flow_updates_player_and_bar(
 
     async with app.run_test() as pilot:
         await pilot.pause()
-        # Open search via shortcut
-        await pilot.press("/")
-        await pilot.pause()
-        assert isinstance(app.screen, SearchScreen)
+        player_bar = app.query_one("#now_playing", NowPlaying)
+        assert player_bar.is_mounted
 
-        # Submit search query
-        search_input = app.screen.query_one("#search_input", Input)
+        search_input = app.query_one("#search_input", Input)
         search_input.value = "ambient"
         await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()
 
-        # Results should be populated and list focused
-        results_list = app.screen.query_one("#results_list", ListView)
-        assert len(results_list.children) > 0
-        assert results_list.has_focus is True
+        results_table = app.query_one("#results_table", SongTable)
+        assert len(results_table._songs) > 0
 
-        # Select first result and press enter to play
-        results_list.index = 0
+        results_table.query_one("ListView").index = 0
         await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()
 
-        # Verify YouTube get_stream and Player play were called with full stream info
         mock_youtube.get_stream.assert_called_once_with("sample1")
         mock_player.play.assert_called_once_with(expected_stream)
         mock_player.set_volume.assert_called_with(80)
 
-        # Verify AppState reflects playback
         assert state.playback_state.get()["status"] == PlaybackStatus.PLAYING
         assert state.current_song.get() is not None
         assert state.current_song.get()["title"] == "Sample Song 1"  # type: ignore[index]
 
-        # Verify PlayerBar reflects playing state
-        player_bar = app.query_one(PlayerBar)
-        status_text = str(player_bar.query_one("#player_status", Static).content)
-        track_text = str(player_bar.query_one("#player_track", Static).content)
-        assert "▶" in status_text
-        assert "Sample Song 1" in track_text
+        assert app.query_one("#now_playing", NowPlaying).is_mounted
+        title_text = str(player_bar.query_one("#np_title", Static).content)
+        assert "▶" in title_text
+        assert "Sample Song 1" in title_text
 
 
 @pytest.mark.asyncio
@@ -106,36 +96,29 @@ async def test_search_and_play_403_error_leaves_state_stopped_and_notifies_user(
 
     async with app.run_test() as pilot:
         await pilot.pause()
-        await pilot.press("/")
-        await pilot.pause()
 
-        search_input = app.screen.query_one("#search_input", Input)
+        search_input = app.query_one("#search_input", Input)
         search_input.value = "ambient"
         await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()
 
-        results_list = app.screen.query_one("#results_list", ListView)
-        results_list.index = 0
+        results_table = app.query_one("#results_table", SongTable)
+        results_table.query_one("ListView").index = 0
         await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()
 
-        # Player must NOT have been called
         mock_player.play.assert_not_called()
 
-        # State must remain stopped and no current song
         assert state.playback_state.get()["status"] == PlaybackStatus.STOPPED
         assert state.current_song.get() is None
 
-        # PlayerBar must remain stopped
-        player_bar = app.query_one(PlayerBar)
-        status_text = str(player_bar.query_one("#player_status", Static).content)
-        track_text = str(player_bar.query_one("#player_track", Static).content)
-        assert "■" in status_text
-        assert "[No track playing]" in track_text
+        player_bar = app.query_one("#now_playing", NowPlaying)
+        title_text = str(player_bar.query_one("#np_title", Static).content)
+        assert "■" in title_text
+        assert "[No track playing]" in title_text
 
-        # User must see error notification with 403
         notifications = list(app._notifications)
         assert any(
             n.severity == "error" and "HTTP Error 403: Forbidden" in n.message

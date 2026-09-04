@@ -35,7 +35,7 @@ async def test_tui_app_lifecycle() -> None:
     app = YTMusicApp()
     async with app.run_test() as pilot:
         assert app.is_running
-        await pilot.press("q")
+        await pilot.press("ctrl+q")
     assert not app.is_running
 
 
@@ -43,10 +43,11 @@ def test_database_in_memory_isolation(test_db: SqliteDatabase) -> None:
     """Verify models can be created and queried in the in-memory test database."""
     user = User.create(username="audiophile")
     song = Song.create(
+        video_id="sample1",
         title="Lofi Beat 1",
         artist="Chill Producer",
+        album="Beats",
         duration=180,
-        url="https://www.youtube.com/watch?v=sample1",
     )
     playlist = Playlist.create(name="Study Vibes", user=user)
     playlist.songs.add(song)

@@ -168,47 +168,44 @@ Target runtime: **Python 3.11+**.
 
 The TUI is implemented with **Textual** and provides a keyboard-first, responsive terminal experience.
 
-### 1. Three-Zone Visual Layout
+### 1. Player Shell Layout
 
 ```
 +-------------------------------------------------------------+
-| Header Zone: [App Title]            [Active Profile / State]|
+| Mode bar: Search Queue Playlists Profiles Settings   <user> |
 +-------------------------------------------------------------+
-| Screen Content Area (Dynamic):                              |
-|   - MainMenuScreen                                          |
-|   - SearchScreen (Query input + Results table)              |
-|   - PlaylistScreen (User playlists + Track listing)         |
-|   - SettingsScreen / HelpModal                              |
+| Mode body (Search is home; never covers now-playing)        |
 +-------------------------------------------------------------+
-| Mini-Player Zone (Persistent):                              |
-|   ▶ Track Title - Artist [01:45/03:30] [Vol: 80%] [==----]  |
+| Now playing: title, progress, volume                        |
 +-------------------------------------------------------------+
-| Footer Zone: [q] Quit  [Space] Play/Pause  [/] Search  [?]  |
+| Status hints for the active mode                            |
 +-------------------------------------------------------------+
 ```
 
 ### 2. Keyboard Navigation Ergonomics
 
 - `Space`: Toggle playback (Play / Pause).
-- `j` / `k` or `Down` / `Up`: Navigate options, search results, and playlist rows.
-- `Enter`: Select / Play item / Open subscreen.
-- `/`: Quick focus on search bar.
+- `j` / `k` or `Down` / `Up`: Navigate lists.
+- `Enter`: Play the highlighted track.
+- `/`: Focus search.
+- `1`–`5`: Switch modes.
 - `+` / `-`: Volume up / down in 5% increments.
-- `h` or `?`: Toggle help overlay.
-- `q` or `Esc`: Back to previous screen / cancel input / quit application.
+- `?`: Help overlay.
+- `Esc`: Blur search or close a modal.
+- `q`: Quit when not typing; `Ctrl+q` always quits.
 
 ### 3. Theme & Styling System (`ytmusic_theme`)
 
-- Background: `#0F0F0F` (Dark terminal canvas).
-- Surface / Panels: `#1A1A1A` and `#222222`.
-- Primary Accent: `#FF0000` (YouTube Brand Red).
-- Secondary Accent: `#3EA6FF` (Focus indicators and active links).
-- Text Primary: `#FFFFFF`.
-- Text Muted: `#888888`.
-- Status Playing / Success: `#2BA640`.
+- Background: `#0B0E14`
+- Surface / Panels: `#141A22` and `#1B2330`
+- Primary Accent: `#E0B15A` (amber; not YouTube red).
+- Secondary Accent / Focus: `#6EC8C0`.
+- Text Primary: `#E8EDF4`.
+- Text Muted: `#8B95A5`.
+- Status Playing / Success: `#3DDC97`.
 - All interactive widgets must define explicit `:focus` visual styling in `app.tcss`.
 - Progress formatting: Standardized `MM:SS` duration display and Unicode volume gauges `[▮▮▮▯▯]`.
-- Responsive breakpoint: Minimum terminal size 80x24; collapsible ASCII art banner when terminal height < 30 rows.
+- Responsive breakpoint: Minimum terminal size 80x24; now-playing collapses when height < 24.
 
 ---
 
@@ -308,7 +305,7 @@ ytmusic-cli/
 │   ├── app.tcss                        # Global Textual CSS styling
 │   ├── db/                             # Peewee models and database setup
 │   ├── music/                          # AppState, domain types, yt-dlp adapter
-│   ├── tui/                            # Textual screens, widgets, headers, footers
+│   ├── tui/                            # Player shell, modes, widgets, modals
 │   └── utils/                          # Common helpers (singleton, etc.)
 ├── pyproject.toml                      # Project metadata & tool configs
 └── Makefile                            # Development command targets

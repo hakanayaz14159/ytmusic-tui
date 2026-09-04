@@ -9,6 +9,8 @@ def test_app_state_is_clean_at_test_start() -> None:
     assert state.current_song.get() is None
     assert state.current_user.get() is None
     assert state.current_playlist.get() is None
+    assert state.queue.get() == []
+    assert state.queue_index.get() == -1
     playback = state.playback_state.get()
     assert playback["status"] == PlaybackStatus.STOPPED
     assert playback["volume"] == 80
