@@ -2,12 +2,12 @@
 
 from typing import Protocol, runtime_checkable
 
-from ytmusic_cli.music.types import Song
+from ytmusic_cli.music.types import AudioStream, Song
 
 
 @runtime_checkable
 class AudioPlayerProtocol(Protocol):
-    def play(self, url: str) -> None: ...
+    def play(self, stream: AudioStream) -> None: ...
 
     def pause(self) -> None: ...
 
@@ -24,4 +24,4 @@ class AudioPlayerProtocol(Protocol):
 class MusicSourceProtocol(Protocol):
     def search(self, query: str, max_results: int = 10) -> list[Song]: ...
 
-    def get_stream_url(self, video_id: str) -> str: ...
+    def get_stream(self, video_id: str) -> AudioStream: ...

@@ -1,5 +1,7 @@
 """Textual pilot tests for the PlayerBar mini-player widget."""
 
+import threading
+
 import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Static
@@ -111,3 +113,42 @@ async def test_player_bar_unmount_unsubscribes_without_errors() -> None:
             }
         )
         await pilot.pause()
+
+
+@pytest.mark.asyncio
+async def test_player_bar_updates_when_state_changed_from_worker_thread() -> None:
+    app = PlayerBarApp()
+    song: Song = {
+        "id": 99,
+        "title": "Thread Song",
+        "artist": "Thread Artist",
+        "album": "Thread Album",
+        "duration": 150,
+        "url": "https://www.youtube.com/watch?v=thread99",
+    }
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        state = AppState()
+
+        def _update() -> None:
+            state.current_song.set(song)
+            state.playback_state.set(
+                {
+                    "status": PlaybackStatus.PLAYING,
+                    "volume": 75,
+                    "position": 10.0,
+                    "duration": 150,
+                }
+            )
+
+        worker = threading.Thread(target=_update)
+        worker.start()
+        worker.join()
+
+        await pilot.pause()
+        await pilot.pause()
+
+        text = _bar_text(app)
+        assert "▶" in text
+        assert "Thread Song - Thread Artist" in text
+        assert "[Vol: 75%]" in text

@@ -9,7 +9,7 @@ from ytmusic_cli.exceptions import (
     YTMusicError,
 )
 
-from .types import Song
+from .types import AudioStream, Song
 
 
 class Youtube:
@@ -41,7 +41,12 @@ class Youtube:
             "extractaudio": True,
             "audioformat": "best",
             "outtmpl": "%(title)s.%(ext)s",
-            "format": "bestaudio/best",
+            "format": "bestaudio[protocol^=http]/bestaudio/best",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "web"],
+                }
+            },
             # Optimize for streaming
             "buffersize": 1024 * 16,  # 16KB buffer
             "http_chunk_size": 1024 * 16,
@@ -106,20 +111,20 @@ class Youtube:
                 f"Search failed for query '{query}': {e!s}"
             ) from e
 
-    def get_stream_url(self, video_id: str, quality: str = "bestaudio") -> str:
+    def get_stream(
+        self,
+        video_id: str,
+        quality: str = "bestaudio[protocol^=http]/bestaudio",
+    ) -> AudioStream:
         """
-        Get the direct stream URL for a YouTube video's audio.
-
-        This is the proper way to get streamable URLs from yt-dlp.
-        The returned URL can be used with external HTTP clients or audio players
-        for real-time streaming.
+        Get the direct stream URL and associated HTTP headers for a YouTube video.
 
         Args:
             video_id: YouTube video ID or URL
-            quality: Audio quality preference ('bestaudio', 'worstaudio', or format code)
+            quality: Audio quality preference ('bestaudio', format code, etc.)
 
         Returns:
-            Direct URL to the audio stream
+            AudioStream containing direct stream URL and HTTP request headers
 
         Raises:
             TrackNotFoundError: If video info or audio stream is missing
@@ -140,14 +145,24 @@ class Youtube:
                         f"Could not extract info for video: {video_id}"
                     )
 
-                # Get the URL from the selected format
+                top_headers: dict[str, str] = dict(info.get("http_headers") or {})
+
+                # Get the URL from the selected format or top-level info
                 if "url" in info:
-                    return info["url"]
+                    return AudioStream(
+                        url=info["url"],
+                        http_headers=top_headers,
+                    )
                 elif info.get("formats"):
-                    # Find the best audio format
                     for fmt in info["formats"]:
                         if fmt.get("acodec") != "none" and fmt.get("url"):
-                            return fmt["url"]
+                            fmt_headers: dict[str, str] = dict(
+                                fmt.get("http_headers") or top_headers
+                            )
+                            return AudioStream(
+                                url=fmt["url"],
+                                http_headers=fmt_headers,
+                            )
 
                 raise TrackNotFoundError("No audio stream URL found")
 
@@ -157,6 +172,19 @@ class Youtube:
             raise StreamExtractionError(
                 f"Failed to get stream URL for video {video_id}: {e!s}"
             ) from e
+
+    def get_stream_url(self, video_id: str, quality: str = "bestaudio") -> str:
+        """
+        Get the direct stream URL for a YouTube video's audio.
+
+        Args:
+            video_id: YouTube video ID or URL
+            quality: Audio quality preference ('bestaudio', 'worstaudio', or format code)
+
+        Returns:
+            Direct URL to the audio stream
+        """
+        return self.get_stream(video_id, quality=quality)["url"]
 
     def stream_sound(self, video_id: str, _chunk_size: int = 8192) -> str:
         """

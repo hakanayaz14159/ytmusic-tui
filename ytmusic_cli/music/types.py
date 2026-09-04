@@ -11,6 +11,11 @@ class Song(TypedDict):
     url: str
 
 
+class AudioStream(TypedDict):
+    url: str
+    http_headers: dict[str, str]
+
+
 class Playlist(TypedDict):
     id: int
     name: str

@@ -116,6 +116,7 @@ async def test_submitting_query_calls_search_and_populates_results(
         first_item = results_list.children[0]
         assert isinstance(first_item, SongListItem)
         assert first_item.song == SAMPLE_SONGS[0]
+        assert results_list.has_focus is True
 
 
 @pytest.mark.asyncio
@@ -136,7 +137,6 @@ async def test_selecting_result_triggers_play_song(
         await pilot.pause()
 
         results_list = app.screen.query_one("#results_list", ListView)
-        results_list.focus()
         results_list.index = 0
         await pilot.press("enter")
         await pilot.pause()
@@ -144,6 +144,80 @@ async def test_selecting_result_triggers_play_song(
 
         # Assert
         mock_playback_service.play_song.assert_called_once_with(SAMPLE_SONGS[0])
+        notifications = list(app._notifications)
+        assert any(
+            n.severity == "information" and "Playing: Ambient Flow" in n.message
+            for n in notifications
+        )
+
+
+@pytest.mark.asyncio
+async def test_playback_failure_notifies_error_and_no_success_toast(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    # Arrange
+    mock_playback_service.play_song.side_effect = RuntimeError(
+        "HTTP Error 403: Forbidden"
+    )
+    app = SearchTestApp(mock_search_service, mock_playback_service)
+
+    # Act
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.screen.query_one("#search_input", Input)
+        search_input.value = "ambient"
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        results_list = app.screen.query_one("#results_list", ListView)
+        results_list.index = 0
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        # Assert
+        notifications = list(app._notifications)
+        assert any(
+            n.severity == "error"
+            and "Playback failed: HTTP Error 403: Forbidden" in n.message
+            for n in notifications
+        )
+        assert not any(
+            n.severity == "information" and "Playing: Ambient Flow" in n.message
+            for n in notifications
+        )
+
+
+@pytest.mark.asyncio
+async def test_missing_playback_service_notifies_error(
+    mock_search_service: MagicMock,
+) -> None:
+    # Arrange
+    app = SearchTestApp(mock_search_service, None)  # type: ignore[arg-type]
+
+    # Act
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.screen.query_one("#search_input", Input)
+        search_input.value = "ambient"
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        results_list = app.screen.query_one("#results_list", ListView)
+        results_list.index = 0
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        # Assert
+        notifications = list(app._notifications)
+        assert any(
+            n.severity == "error" and "Playback service is not available" in n.message
+            for n in notifications
+        )
 
 
 @pytest.mark.asyncio

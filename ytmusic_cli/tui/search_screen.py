@@ -142,7 +142,6 @@ class SearchScreen(Screen[None]):
         if not isinstance(item, SongListItem):
             return
         song = item.song
-        self.notify(f"Playing: {song['title']}", severity="information")
         self._play_song(song)
 
     def action_dismiss_screen(self) -> None:
@@ -171,9 +170,19 @@ class SearchScreen(Screen[None]):
     def _play_song(self, song: Song) -> None:
         service = self.playback_service
         if service is None:
+            self.app.call_from_thread(
+                self.notify,
+                "Playback service is not available",
+                severity="error",
+            )
             return
         try:
             service.play_song(song)
+            self.app.call_from_thread(
+                self.notify,
+                f"Playing: {song['title']}",
+                severity="information",
+            )
         except Exception as err:
             self.app.call_from_thread(
                 self.notify,
@@ -187,6 +196,8 @@ class SearchScreen(Screen[None]):
         results_list.clear()
         for song in results:
             results_list.append(SongListItem(song))
+        if results:
+            results_list.focus()
 
     def _on_search_error(self, message: str) -> None:
         self._set_loading(False)

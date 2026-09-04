@@ -32,6 +32,87 @@ def test_search_raises_stream_extraction_error_on_ydl_failure(
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
+def test_get_stream_returns_url_and_headers_from_top_level_info(
+    youtube_no_init: Youtube,
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+    mock_ydl.__exit__ = MagicMock(return_value=False)
+    mock_ydl.extract_info.return_value = {
+        "url": "https://googlevideo.com/videoplayback?id=123",
+        "http_headers": {
+            "User-Agent": "test-agent",
+            "Referer": "https://www.youtube.com/",
+        },
+    }
+    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+
+    stream = youtube_no_init.get_stream("dQw4w9WgXcQ")
+    assert stream["url"] == "https://googlevideo.com/videoplayback?id=123"
+    assert stream["http_headers"] == {
+        "User-Agent": "test-agent",
+        "Referer": "https://www.youtube.com/",
+    }
+
+
+def test_get_stream_returns_url_and_headers_from_best_audio_format(
+    youtube_no_init: Youtube,
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+    mock_ydl.__exit__ = MagicMock(return_value=False)
+    mock_ydl.extract_info.return_value = {
+        "http_headers": {"User-Agent": "default-agent"},
+        "formats": [
+            {
+                "acodec": "opus",
+                "url": "https://googlevideo.com/videoplayback?fmt=opus",
+                "http_headers": {
+                    "User-Agent": "format-agent",
+                    "Referer": "https://www.youtube.com/",
+                },
+            }
+        ],
+    }
+    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+
+    stream = youtube_no_init.get_stream("dQw4w9WgXcQ")
+    assert stream["url"] == "https://googlevideo.com/videoplayback?fmt=opus"
+    assert stream["http_headers"] == {
+        "User-Agent": "format-agent",
+        "Referer": "https://www.youtube.com/",
+    }
+
+
+def test_get_stream_raises_track_not_found_when_info_missing(
+    youtube_no_init: Youtube,
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+    mock_ydl.__exit__ = MagicMock(return_value=False)
+    mock_ydl.extract_info.return_value = None
+    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+
+    with pytest.raises(TrackNotFoundError, match="Could not extract info"):
+        youtube_no_init.get_stream("dQw4w9WgXcQ")
+
+
+def test_youtube_default_options_include_player_client_and_http_format(
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    patch = mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    Youtube()
+    called_opts = patch.call_args[0][0]
+    assert "extractor_args" in called_opts
+    assert "youtube" in called_opts["extractor_args"]
+    assert "player_client" in called_opts["extractor_args"]["youtube"]
+    assert "android" in called_opts["extractor_args"]["youtube"]["player_client"]
+
+
 def test_get_stream_url_raises_track_not_found_when_info_missing(
     youtube_no_init: Youtube,
     mocker: MockerFixture,

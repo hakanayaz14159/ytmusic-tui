@@ -12,6 +12,7 @@ from ytmusic_cli.db.playlist import Playlist
 from ytmusic_cli.db.song import Song
 from ytmusic_cli.db.user import User
 from ytmusic_cli.music.state import AppState
+from ytmusic_cli.music.types import AudioStream
 from ytmusic_cli.music.types import Song as SongType
 
 MODELS = [User, Song, Playlist, Playlist.songs.get_through_model()]
@@ -63,6 +64,15 @@ def mock_youtube(mocker: MockerFixture) -> MagicMock:
     # Explicit attribute assignment so isinstance(..., MusicSourceProtocol) works
     # (getattr_static used by runtime_checkable cannot see MagicMock children).
     mock.search = mocker.MagicMock(return_value=sample_songs)
+    mock.get_stream = mocker.MagicMock(
+        return_value={
+            "url": "https://stream.example.com/audio.m4a",
+            "http_headers": {
+                "User-Agent": "test-agent",
+                "Referer": "https://www.youtube.com/",
+            },
+        }
+    )
     mock.get_stream_url = mocker.MagicMock(
         return_value="https://stream.example.com/audio.m4a"
     )
@@ -99,13 +109,19 @@ def mock_player(mocker: MockerFixture) -> MagicMock:
     state: dict[str, Any] = {
         "is_playing": False,
         "current_url": None,
+        "current_stream": None,
         "volume": 80,
         "position": 0.0,
     }
 
-    def _play(url: str) -> None:
+    def _play(stream: AudioStream | str) -> None:
         state["is_playing"] = True
-        state["current_url"] = url
+        if isinstance(stream, dict):
+            state["current_stream"] = stream
+            state["current_url"] = stream.get("url")
+        else:
+            state["current_url"] = stream
+            state["current_stream"] = {"url": stream, "http_headers": {}}
 
     def _pause() -> None:
         state["is_playing"] = False

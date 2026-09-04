@@ -8,6 +8,7 @@ from pytest_mock import MockerFixture
 from ytmusic_cli.exceptions import PlaybackError
 from ytmusic_cli.music.player import VLCPlayer
 from ytmusic_cli.music.ports import AudioPlayerProtocol
+from ytmusic_cli.music.types import AudioStream
 
 
 @pytest.fixture
@@ -16,6 +17,7 @@ def mock_vlc(mocker: MockerFixture) -> MagicMock:
     mock_instance = mocker.MagicMock()
     mock_media_player = mocker.MagicMock()
     mock_media = mocker.MagicMock()
+    mock_media_player.play.return_value = 0
     mock_instance.media_player_new.return_value = mock_media_player
     mock_instance.media_new.return_value = mock_media
     mocker.patch("ytmusic_cli.music.player.vlc.Instance", return_value=mock_instance)
@@ -28,14 +30,45 @@ def test_vlc_player_implements_audio_player_protocol(mock_vlc: MagicMock) -> Non
     assert mock_vlc is player._player
 
 
-def test_play_sets_media_and_plays(mock_vlc: MagicMock) -> None:
+def test_init_passes_no_video_option(mocker: MockerFixture) -> None:
+    mock_instance_cls = mocker.patch("ytmusic_cli.music.player.vlc.Instance")
+    VLCPlayer()
+    mock_instance_cls.assert_called_once()
+    args = mock_instance_cls.call_args[0]
+    assert "--no-video" in args
+
+
+def test_play_sets_media_configures_headers_and_plays(mock_vlc: MagicMock) -> None:
     player = VLCPlayer()
-    player.play("https://stream.example.com/audio.m4a")
+    stream: AudioStream = {
+        "url": "https://stream.example.com/audio.m4a",
+        "http_headers": {
+            "User-Agent": "test-agent",
+            "Referer": "https://www.youtube.com/",
+        },
+    }
+    player.play(stream)
     player._instance.media_new.assert_called_once_with(
         "https://stream.example.com/audio.m4a"
     )
-    mock_vlc.set_media.assert_called_once()
+    mock_media = player._instance.media_new.return_value
+    mock_media.add_option.assert_any_call(":http-user-agent=test-agent")
+    mock_media.add_option.assert_any_call(":http-referrer=https://www.youtube.com/")
+    mock_vlc.set_media.assert_called_once_with(mock_media)
     mock_vlc.play.assert_called_once()
+
+
+def test_play_raises_playback_error_when_vlc_returns_failure_code(
+    mock_vlc: MagicMock,
+) -> None:
+    mock_vlc.play.return_value = -1
+    player = VLCPlayer()
+    stream: AudioStream = {
+        "url": "https://stream.example.com/audio.m4a",
+        "http_headers": {},
+    }
+    with pytest.raises(PlaybackError, match="Failed to play"):
+        player.play(stream)
 
 
 def test_pause_delegates_to_vlc(mock_vlc: MagicMock) -> None:
@@ -77,8 +110,12 @@ def test_get_volume_delegates_to_vlc(mock_vlc: MagicMock) -> None:
 def test_play_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) -> None:
     mock_vlc.play.side_effect = RuntimeError("libvlc boom")
     player = VLCPlayer()
+    stream: AudioStream = {
+        "url": "https://stream.example.com/audio.m4a",
+        "http_headers": {},
+    }
     with pytest.raises(PlaybackError, match="Failed to play") as exc_info:
-        player.play("https://stream.example.com/audio.m4a")
+        player.play(stream)
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 

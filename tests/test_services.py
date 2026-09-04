@@ -4,10 +4,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ytmusic_cli.exceptions import StreamExtractionError, ValidationError
+from ytmusic_cli.exceptions import (
+    PlaybackError,
+    StreamExtractionError,
+    ValidationError,
+)
 from ytmusic_cli.music.services import PlaybackService, SearchService
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackStatus, Song
+from ytmusic_cli.music.types import AudioStream, PlaybackStatus, Song
 
 
 @pytest.fixture
@@ -51,11 +55,21 @@ def test_playback_service_play_song_updates_state(
     app_state: AppState,
     sample_song: Song,
 ) -> None:
+    expected_stream: AudioStream = {
+        "url": "https://stream.example.com/audio.m4a",
+        "http_headers": {
+            "User-Agent": "test-agent",
+            "Referer": "https://www.youtube.com/",
+        },
+    }
+    mock_youtube.get_stream.return_value = expected_stream
+
     service = PlaybackService(mock_player, mock_youtube, app_state)
     service.play_song(sample_song)
 
-    mock_youtube.get_stream_url.assert_called_once_with(sample_song["url"])
-    mock_player.play.assert_called_once_with("https://stream.example.com/audio.m4a")
+    mock_youtube.get_stream.assert_called_once_with(sample_song["url"])
+    mock_player.play.assert_called_once_with(expected_stream)
+    mock_player.set_volume.assert_called_with(80)
     assert app_state.current_song.get() == sample_song
     playback = app_state.playback_state.get()
     assert playback["status"] == PlaybackStatus.PLAYING
@@ -145,12 +159,28 @@ def test_playback_service_source_failure_leaves_state_stopped(
     app_state: AppState,
     sample_song: Song,
 ) -> None:
-    mock_youtube.get_stream_url.side_effect = StreamExtractionError("boom")
+    mock_youtube.get_stream.side_effect = StreamExtractionError("boom")
     service = PlaybackService(mock_player, mock_youtube, app_state)
 
     with pytest.raises(StreamExtractionError):
         service.play_song(sample_song)
 
     mock_player.play.assert_not_called()
+    assert app_state.current_song.get() is None
+    assert app_state.playback_state.get()["status"] == PlaybackStatus.STOPPED
+
+
+def test_playback_service_player_failure_leaves_state_stopped(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    app_state: AppState,
+    sample_song: Song,
+) -> None:
+    mock_player.play.side_effect = PlaybackError("VLC failed")
+    service = PlaybackService(mock_player, mock_youtube, app_state)
+
+    with pytest.raises(PlaybackError):
+        service.play_song(sample_song)
+
     assert app_state.current_song.get() is None
     assert app_state.playback_state.get()["status"] == PlaybackStatus.STOPPED

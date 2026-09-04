@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 from ytmusic_cli.music.ports import AudioPlayerProtocol, MusicSourceProtocol
+from ytmusic_cli.music.types import AudioStream
 
 
 def test_mock_player_satisfies_audio_player_protocol(
@@ -19,7 +20,7 @@ def test_mock_youtube_satisfies_music_source_protocol(
 
 def test_incomplete_player_fails_audio_player_protocol() -> None:
     class IncompletePlayer:
-        def play(self, url: str) -> None:
+        def play(self, stream: AudioStream) -> None:
             pass
 
     assert not isinstance(IncompletePlayer(), AudioPlayerProtocol)
@@ -35,7 +36,7 @@ def test_incomplete_source_fails_music_source_protocol() -> None:
 
 def test_complete_dummy_player_satisfies_protocol() -> None:
     class DummyPlayer:
-        def play(self, url: str) -> None:
+        def play(self, stream: AudioStream) -> None:
             pass
 
         def pause(self) -> None:
@@ -61,7 +62,7 @@ def test_complete_dummy_source_satisfies_protocol() -> None:
         def search(self, query: str, max_results: int = 10) -> list[object]:
             return []
 
-        def get_stream_url(self, video_id: str) -> str:
-            return "https://stream.example.com/audio.m4a"
+        def get_stream(self, video_id: str) -> AudioStream:
+            return {"url": "https://stream.example.com/audio.m4a", "http_headers": {}}
 
     assert isinstance(DummySource(), MusicSourceProtocol)

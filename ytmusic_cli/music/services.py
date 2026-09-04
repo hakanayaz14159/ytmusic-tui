@@ -34,10 +34,11 @@ class PlaybackService:
         self._state = state
 
     def play_song(self, song: Song) -> None:
-        stream_url = self._source.get_stream_url(song["url"])
-        self._player.play(stream_url)
-        self._state.current_song.set(song)
+        stream = self._source.get_stream(song["url"])
+        self._player.play(stream)
         current = self._state.playback_state.get()
+        self._player.set_volume(current["volume"])
+        self._state.current_song.set(song)
         self._state.playback_state.set(
             PlaybackState(
                 status=PlaybackStatus.PLAYING,

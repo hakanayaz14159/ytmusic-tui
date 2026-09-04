@@ -4,6 +4,7 @@ from collections.abc import Callable  # noqa: TC003
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
+from textual.message import Message
 from textual.widgets import Static
 
 from ytmusic_cli.music.state import AppState
@@ -25,6 +26,14 @@ def _format_time(seconds: float) -> str:
 
 class PlayerBar(Static):
     """Docked mini-player showing playback status, track, progress, and volume."""
+
+    class StateUpdated(Message):
+        """Dispatched to marshal AppState updates onto Textual's event loop."""
+
+        def __init__(self, song: Song | None, playback: PlaybackState) -> None:
+            super().__init__()
+            self.song = song
+            self.playback = playback
 
     DEFAULT_CSS = """
     PlayerBar {
@@ -103,12 +112,23 @@ class PlayerBar(Static):
             self._unsub_playback = None
 
     def _on_song_changed(self, song: Song | None) -> None:
-        self._refresh(song, self._app_state.playback_state.get())
+        if self.is_mounted:
+            self.post_message(
+                self.StateUpdated(song, self._app_state.playback_state.get())
+            )
 
     def _on_playback_changed(self, playback: PlaybackState) -> None:
-        self._refresh(self._app_state.current_song.get(), playback)
+        if self.is_mounted:
+            self.post_message(
+                self.StateUpdated(self._app_state.current_song.get(), playback)
+            )
+
+    def on_player_bar_state_updated(self, message: StateUpdated) -> None:
+        self._refresh(message.song, message.playback)
 
     def _refresh(self, song: Song | None, playback: PlaybackState) -> None:
+        if not self.is_mounted:
+            return
         glyph = _STATUS_GLYPHS[playback["status"]]
         track = (
             f"{song['title']} - {song['artist']}"
@@ -123,7 +143,10 @@ class PlayerBar(Static):
                 f"{_format_time(float(playback['duration']))}"
             )
 
-        self.query_one("#player_status", Static).update(glyph)
-        self.query_one("#player_track", Static).update(track)
-        self.query_one("#player_progress", Static).update(progress)
-        self.query_one("#player_volume", Static).update(volume)
+        try:
+            self.query_one("#player_status", Static).update(glyph)
+            self.query_one("#player_track", Static).update(track)
+            self.query_one("#player_progress", Static).update(progress)
+            self.query_one("#player_volume", Static).update(volume)
+        except Exception:
+            pass
