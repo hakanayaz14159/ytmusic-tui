@@ -4,15 +4,18 @@ import sys
 from typing import Any, ClassVar
 
 import click
+from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import BindingType
 from textual.containers import Center
 from textual.widgets import Footer
 
 from ytmusic_cli.db.bootstrap import bootstrap
+from ytmusic_cli.exceptions import YTMusicError
 from ytmusic_cli.music.player import VLCPlayer
 from ytmusic_cli.music.services import PlaybackService, SearchService
 from ytmusic_cli.music.state import AppState
+from ytmusic_cli.music.types import Song
 from ytmusic_cli.music.youtube import Youtube
 from ytmusic_cli.theme import ytmusic_theme
 from ytmusic_cli.tui.ascii_title import AsciiTitle
@@ -70,6 +73,9 @@ class YTMusicApp(App[None]):
         self.search_service = search_service
         self.playback_service = playback_service
 
+    def on_mount(self) -> None:
+        self.set_interval(1.0, self.playback_service.sync_playback)
+
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield Header()
@@ -80,16 +86,36 @@ class YTMusicApp(App[None]):
 
     def action_search(self) -> None:
         """Open search interface."""
-        self.push_screen(
-            SearchScreen(
-                search_service=self.search_service,
-                playback_service=self.playback_service,
+        self.push_screen(SearchScreen(search_service=self.search_service))
+
+    @work(thread=True, exclusive=True, group="playback")
+    def play_song(self, song: Song) -> None:
+        try:
+            self.playback_service.play_song(song)
+        except YTMusicError as err:
+            self.call_from_thread(
+                self.notify,
+                f"Playback failed: {err}",
+                severity="error",
             )
+            return
+        self.call_from_thread(
+            self.notify,
+            f"Playing: {song['title']}",
+            severity="information",
         )
 
+    @work(thread=True, exclusive=True, group="playback")
     def action_toggle_playback(self) -> None:
         """Toggle play/pause on the current track."""
-        self.playback_service.toggle()
+        try:
+            self.playback_service.toggle()
+        except YTMusicError as err:
+            self.call_from_thread(
+                self.notify,
+                f"Playback failed: {err}",
+                severity="error",
+            )
 
     def action_volume_up(self) -> None:
         """Increase playback volume."""

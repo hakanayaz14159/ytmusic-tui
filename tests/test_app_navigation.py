@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
 
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.tui.player_bar import PlayerBar
@@ -142,6 +143,19 @@ async def test_pressing_minus_calls_volume_down(
 
         # Assert
         mock_playback_service.volume_down.assert_called_once()
+
+
+def test_on_mount_schedules_playback_sync_interval(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    set_interval = mocker.patch.object(app, "set_interval")
+
+    app.on_mount()
+
+    set_interval.assert_called_once_with(1.0, app.playback_service.sync_playback)
 
 
 @pytest.mark.asyncio

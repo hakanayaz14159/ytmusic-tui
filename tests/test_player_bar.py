@@ -45,12 +45,11 @@ async def test_player_bar_initial_display_shows_stopped_empty_state() -> None:
 async def test_player_bar_updates_when_app_state_changes() -> None:
     app = PlayerBarApp()
     song: Song = {
-        "id": 42,
+        "video_id": "synth42",
         "title": "Ambient Flow",
         "artist": "SynthArtist",
         "album": "Deep Space",
         "duration": 210,
-        "url": "https://www.youtube.com/watch?v=synth42",
     }
 
     async with app.run_test() as pilot:
@@ -119,12 +118,11 @@ async def test_player_bar_unmount_unsubscribes_without_errors() -> None:
 async def test_player_bar_updates_when_state_changed_from_worker_thread() -> None:
     app = PlayerBarApp()
     song: Song = {
-        "id": 99,
+        "video_id": "thread99",
         "title": "Thread Song",
         "artist": "Thread Artist",
         "album": "Thread Album",
         "duration": 150,
-        "url": "https://www.youtube.com/watch?v=thread99",
     }
     async with app.run_test() as pilot:
         await pilot.pause()

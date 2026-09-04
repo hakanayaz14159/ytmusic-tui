@@ -3,12 +3,11 @@ from typing import TypedDict
 
 
 class Song(TypedDict):
-    id: int
+    video_id: str
     title: str
     artist: str | None
     album: str | None
     duration: int
-    url: str
 
 
 class AudioStream(TypedDict):

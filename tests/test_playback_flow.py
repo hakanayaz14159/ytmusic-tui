@@ -66,9 +66,7 @@ async def test_search_and_play_flow_updates_player_and_bar(
         await pilot.pause()
 
         # Verify YouTube get_stream and Player play were called with full stream info
-        mock_youtube.get_stream.assert_called_once_with(
-            "https://www.youtube.com/watch?v=sample1"
-        )
+        mock_youtube.get_stream.assert_called_once_with("sample1")
         mock_player.play.assert_called_once_with(expected_stream)
         mock_player.set_volume.assert_called_with(80)
 

@@ -143,10 +143,7 @@ class PlayerBar(Static):
                 f"{_format_time(float(playback['duration']))}"
             )
 
-        try:
-            self.query_one("#player_status", Static).update(glyph)
-            self.query_one("#player_track", Static).update(track)
-            self.query_one("#player_progress", Static).update(progress)
-            self.query_one("#player_volume", Static).update(volume)
-        except Exception:
-            pass
+        self.query_one("#player_status", Static).update(glyph)
+        self.query_one("#player_track", Static).update(track)
+        self.query_one("#player_progress", Static).update(progress)
+        self.query_one("#player_volume", Static).update(volume)

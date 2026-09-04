@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 import pytest
+import vlc
 from pytest_mock import MockerFixture
 
 from ytmusic_cli.exceptions import PlaybackError
@@ -116,6 +117,48 @@ def test_play_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) -> None:
     }
     with pytest.raises(PlaybackError, match="Failed to play") as exc_info:
         player.play(stream)
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
+def test_get_position_converts_milliseconds_to_seconds(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_time.return_value = 4500
+    player = VLCPlayer()
+    assert player.get_position() == 4.5
+
+
+def test_get_position_clamps_negative_time_to_zero(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_time.return_value = -1
+    player = VLCPlayer()
+    assert player.get_position() == 0.0
+
+
+def test_get_position_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_time.side_effect = RuntimeError("libvlc boom")
+    player = VLCPlayer()
+    with pytest.raises(PlaybackError, match="position") as exc_info:
+        player.get_position()
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
+def test_has_ended_true_for_ended_and_error_states(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_state.return_value = vlc.State.Ended
+    player = VLCPlayer()
+    assert player.has_ended() is True
+    mock_vlc.get_state.return_value = vlc.State.Error
+    assert player.has_ended() is True
+
+
+def test_has_ended_false_when_playing(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_state.return_value = vlc.State.Playing
+    player = VLCPlayer()
+    assert player.has_ended() is False
+
+
+def test_has_ended_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_state.side_effect = RuntimeError("libvlc boom")
+    player = VLCPlayer()
+    with pytest.raises(PlaybackError) as exc_info:
+        player.has_ended()
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 

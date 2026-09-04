@@ -54,6 +54,12 @@ def test_complete_dummy_player_satisfies_protocol() -> None:
         def get_volume(self) -> int:
             return 80
 
+        def get_position(self) -> float:
+            return 0.0
+
+        def has_ended(self) -> bool:
+            return False
+
     assert isinstance(DummyPlayer(), AudioPlayerProtocol)
 
 

@@ -100,34 +100,7 @@ def test_get_stream_raises_track_not_found_when_info_missing(
         youtube_no_init.get_stream("dQw4w9WgXcQ")
 
 
-def test_youtube_default_options_include_player_client_and_http_format(
-    mocker: MockerFixture,
-) -> None:
-    mock_ydl = MagicMock()
-    patch = mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
-    Youtube()
-    called_opts = patch.call_args[0][0]
-    assert "extractor_args" in called_opts
-    assert "youtube" in called_opts["extractor_args"]
-    assert "player_client" in called_opts["extractor_args"]["youtube"]
-    assert "android" in called_opts["extractor_args"]["youtube"]["player_client"]
-
-
-def test_get_stream_url_raises_track_not_found_when_info_missing(
-    youtube_no_init: Youtube,
-    mocker: MockerFixture,
-) -> None:
-    mock_ydl = MagicMock()
-    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
-    mock_ydl.__exit__ = MagicMock(return_value=False)
-    mock_ydl.extract_info.return_value = None
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
-
-    with pytest.raises(TrackNotFoundError, match="Could not extract info"):
-        youtube_no_init.get_stream_url("dQw4w9WgXcQ")
-
-
-def test_get_stream_url_raises_track_not_found_when_no_audio_format(
+def test_get_stream_raises_track_not_found_when_no_audio_format(
     youtube_no_init: Youtube,
     mocker: MockerFixture,
 ) -> None:
@@ -140,10 +113,10 @@ def test_get_stream_url_raises_track_not_found_when_no_audio_format(
     mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     with pytest.raises(TrackNotFoundError, match="No audio stream URL found"):
-        youtube_no_init.get_stream_url("dQw4w9WgXcQ")
+        youtube_no_init.get_stream("dQw4w9WgXcQ")
 
 
-def test_get_stream_url_wraps_ydl_failure_as_stream_extraction_error(
+def test_get_stream_wraps_ydl_failure_as_stream_extraction_error(
     youtube_no_init: Youtube,
     mocker: MockerFixture,
 ) -> None:
@@ -156,22 +129,8 @@ def test_get_stream_url_wraps_ydl_failure_as_stream_extraction_error(
     with pytest.raises(
         StreamExtractionError, match="Failed to get stream URL"
     ) as exc_info:
-        youtube_no_init.get_stream_url("dQw4w9WgXcQ")
+        youtube_no_init.get_stream("dQw4w9WgXcQ")
     assert isinstance(exc_info.value.__cause__, OSError)
-
-
-def test_get_metadata_raises_track_not_found_when_info_missing(
-    youtube_no_init: Youtube,
-    mocker: MockerFixture,
-) -> None:
-    mock_ydl = MagicMock()
-    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
-    mock_ydl.__exit__ = MagicMock(return_value=False)
-    mock_ydl.extract_info.return_value = None
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
-
-    with pytest.raises(TrackNotFoundError, match="Could not extract info"):
-        youtube_no_init.get_metadata("dQw4w9WgXcQ")
 
 
 def test_normalize_video_url_with_video_id(youtube_no_init: Youtube) -> None:
@@ -205,14 +164,47 @@ def test_convert_entry_to_song(youtube_no_init: Youtube) -> None:
     }
     song = youtube_no_init._convert_entry_to_song(entry)
     assert song is not None
+    assert song["video_id"] == "abc12345678"
     assert song["title"] == "Test Track"
     assert song["artist"] == "Test Artist"
     assert song["album"] == "Test Album"
     assert song["duration"] == 180
-    assert song["url"] == "https://www.youtube.com/watch?v=abc12345678"
 
 
 def test_convert_entry_to_song_returns_none_without_id(
     youtube_no_init: Youtube,
 ) -> None:
     assert youtube_no_init._convert_entry_to_song({"title": "No ID"}) is None
+
+
+def test_convert_entry_to_song_treats_none_duration_as_zero(
+    youtube_no_init: Youtube,
+) -> None:
+    entry: dict[str, Any] = {
+        "id": "livestream01",
+        "title": "Lofi Radio",
+        "uploader": "Chill",
+        "duration": None,
+    }
+    song = youtube_no_init._convert_entry_to_song(entry)
+    assert song is not None
+    assert song["duration"] == 0
+
+
+def test_search_uses_extract_flat_in_playlist(
+    youtube_no_init: Youtube,
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+    mock_ydl.__exit__ = MagicMock(return_value=False)
+    mock_ydl.extract_info.return_value = {"entries": []}
+    patched = mocker.patch(
+        "ytmusic_cli.music.youtube.YoutubeDL",
+        return_value=mock_ydl,
+    )
+
+    youtube_no_init.search("lofi")
+
+    called_opts = patched.call_args[0][0]
+    assert called_opts["extract_flat"] == "in_playlist"

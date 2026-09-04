@@ -75,12 +75,11 @@ def test_app_state_reset_restores_playback_defaults() -> None:
     )
     state.current_song.set(
         {
-            "id": 1,
+            "video_id": "abc",
             "title": "Test",
             "artist": "Artist",
             "album": None,
             "duration": 300,
-            "url": "https://www.youtube.com/watch?v=abc",
         }
     )
     state.reset()

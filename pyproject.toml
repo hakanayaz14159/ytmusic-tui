@@ -125,6 +125,7 @@ minversion = "8.0"
 addopts = "-ra -q --strict-markers --strict-config"
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = ["network: hits real YouTube via yt-dlp; skipped when offline"]
 filterwarnings = [
     "error",
     "ignore::UserWarning",

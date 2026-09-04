@@ -58,17 +58,14 @@ def test_database_in_memory_isolation(test_db: SqliteDatabase) -> None:
 
 
 def test_mock_youtube_fixture(mock_youtube: MagicMock) -> None:
-    """Verify mock_youtube fixture returns sample songs and metadata."""
+    """Verify mock_youtube fixture returns sample songs and a stream."""
     results = mock_youtube.search("lofi", max_results=2)
     assert len(results) == 2
     assert results[0]["title"] == "Sample Song 1"
+    assert results[0]["video_id"] == "sample1"
 
-    stream_url = mock_youtube.get_stream_url("sample1")
-    assert stream_url.startswith("https://")
-
-    meta = mock_youtube.get_metadata("sample1")
-    assert meta["id"] == "sample1"
-    assert meta["title"] == "Sample Song 1"
+    stream = mock_youtube.get_stream("sample1")
+    assert stream["url"].startswith("https://")
 
 
 def test_mock_player_fixture(mock_player: MagicMock) -> None:

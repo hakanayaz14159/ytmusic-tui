@@ -1,6 +1,6 @@
 """Search screen for querying YouTube Music and playing results."""
 
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from textual import work
 from textual.app import ComposeResult
@@ -9,8 +9,12 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import Input, Label, ListItem, ListView, LoadingIndicator
 
-from ytmusic_cli.music.services import PlaybackService, SearchService
+from ytmusic_cli.exceptions import YTMusicError
+from ytmusic_cli.music.services import SearchService
 from ytmusic_cli.music.types import Song
+
+if TYPE_CHECKING:
+    from ytmusic_cli.main import YTMusicApp
 
 
 class SongListItem(ListItem):
@@ -24,6 +28,8 @@ class SongListItem(ListItem):
 
 class SearchScreen(Screen[None]):
     """Screen for searching tracks and triggering playback on selection."""
+
+    app: "YTMusicApp"
 
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("escape", "dismiss_screen", "Back"),
@@ -94,26 +100,18 @@ class SearchScreen(Screen[None]):
     def __init__(
         self,
         search_service: SearchService | None = None,
-        playback_service: PlaybackService | None = None,
         name: str | None = None,
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
         self._search_service = search_service
-        self._playback_service = playback_service
 
     @property
     def search_service(self) -> SearchService | None:
         if self._search_service is not None:
             return self._search_service
         return getattr(self.app, "search_service", None)
-
-    @property
-    def playback_service(self) -> PlaybackService | None:
-        if self._playback_service is not None:
-            return self._playback_service
-        return getattr(self.app, "playback_service", None)
 
     def compose(self) -> ComposeResult:
         yield Label("Search", id="search_header")
@@ -142,7 +140,7 @@ class SearchScreen(Screen[None]):
         if not isinstance(item, SongListItem):
             return
         song = item.song
-        self._play_song(song)
+        self.app.play_song(song)
 
     def action_dismiss_screen(self) -> None:
         self.dismiss()
@@ -158,37 +156,13 @@ class SearchScreen(Screen[None]):
             return
         try:
             results = service.search(query)
-        except Exception as err:
+        except YTMusicError as err:
             self.app.call_from_thread(
                 self._on_search_error,
                 str(err) or "Search failed",
             )
             return
         self.app.call_from_thread(self._on_search_success, results)
-
-    @work(thread=True, exclusive=True, group="playback")
-    def _play_song(self, song: Song) -> None:
-        service = self.playback_service
-        if service is None:
-            self.app.call_from_thread(
-                self.notify,
-                "Playback service is not available",
-                severity="error",
-            )
-            return
-        try:
-            service.play_song(song)
-            self.app.call_from_thread(
-                self.notify,
-                f"Playing: {song['title']}",
-                severity="information",
-            )
-        except Exception as err:
-            self.app.call_from_thread(
-                self.notify,
-                f"Playback failed: {err}",
-                severity="error",
-            )
 
     def _on_search_success(self, results: list[Song]) -> None:
         self._set_loading(False)

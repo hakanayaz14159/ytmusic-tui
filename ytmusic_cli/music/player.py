@@ -75,3 +75,16 @@ class VLCPlayer:
             return int(self._player.audio_get_volume())
         except Exception as err:
             raise PlaybackError("Failed to get volume") from err
+
+    def get_position(self) -> float:
+        try:
+            time_ms = self._player.get_time()
+            return max(0.0, time_ms / 1000.0)
+        except Exception as err:
+            raise PlaybackError("Failed to get playback position") from err
+
+    def has_ended(self) -> bool:
+        try:
+            return self._player.get_state() in (vlc.State.Ended, vlc.State.Error)
+        except Exception as err:
+            raise PlaybackError("Failed to query playback end state") from err

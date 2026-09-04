@@ -19,6 +19,10 @@ class AudioPlayerProtocol(Protocol):
 
     def get_volume(self) -> int: ...
 
+    def get_position(self) -> float: ...
+
+    def has_ended(self) -> bool: ...
+
 
 @runtime_checkable
 class MusicSourceProtocol(Protocol):

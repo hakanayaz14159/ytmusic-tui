@@ -1,5 +1,6 @@
 """Shared pytest fixtures for YTMusic CLI test suite."""
 
+import socket
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import MagicMock
@@ -16,6 +17,21 @@ from ytmusic_cli.music.types import AudioStream
 from ytmusic_cli.music.types import Song as SongType
 
 MODELS = [User, Song, Playlist, Playlist.songs.get_through_model()]
+
+
+@pytest.fixture(scope="session")
+def network_available() -> bool:
+    try:
+        with socket.create_connection(("www.youtube.com", 443), timeout=5):
+            return True
+    except OSError:
+        return False
+
+
+@pytest.fixture
+def requires_network(network_available: bool) -> None:
+    if not network_available:
+        pytest.skip("no route to www.youtube.com:443 - live contract test skipped")
 
 
 @pytest.fixture(autouse=True)
@@ -44,20 +60,18 @@ def mock_youtube(mocker: MockerFixture) -> MagicMock:
 
     sample_songs: list[SongType] = [
         {
-            "id": 1,
+            "video_id": "sample1",
             "title": "Sample Song 1",
             "artist": "Sample Artist 1",
             "album": "Sample Album 1",
             "duration": 210,
-            "url": "https://www.youtube.com/watch?v=sample1",
         },
         {
-            "id": 2,
+            "video_id": "sample2",
             "title": "Sample Song 2",
             "artist": "Sample Artist 2",
             "album": "Sample Album 2",
             "duration": 185,
-            "url": "https://www.youtube.com/watch?v=sample2",
         },
     ]
 
@@ -71,32 +85,6 @@ def mock_youtube(mocker: MockerFixture) -> MagicMock:
                 "User-Agent": "test-agent",
                 "Referer": "https://www.youtube.com/",
             },
-        }
-    )
-    mock.get_stream_url = mocker.MagicMock(
-        return_value="https://stream.example.com/audio.m4a"
-    )
-    mock.stream_sound = mocker.MagicMock(
-        return_value="https://stream.example.com/audio.m4a"
-    )
-    mock.get_metadata = mocker.MagicMock(
-        return_value={
-            "id": "sample1",
-            "title": "Sample Song 1",
-            "artist": "Sample Artist 1",
-            "album": "Sample Album 1",
-            "duration": 210,
-            "url": "https://www.youtube.com/watch?v=sample1",
-            "description": "A sample track description",
-            "view_count": 10000,
-            "live_status": "not_live",
-        }
-    )
-    mock.download_audio = mocker.MagicMock(return_value="/tmp/downloads/sample1.mp3")
-    mock.get_live_stream_info = mocker.MagicMock(
-        return_value={
-            "is_live": False,
-            "live_status": "not_live",
         }
     )
     return mock
@@ -148,6 +136,8 @@ def mock_player(mocker: MockerFixture) -> MagicMock:
     player.is_playing = mocker.MagicMock(side_effect=_is_playing)
     player.set_volume = mocker.MagicMock(side_effect=_set_volume)
     player.get_volume = mocker.MagicMock(side_effect=_get_volume)
+    player.get_position = mocker.MagicMock(return_value=0.0)
+    player.has_ended = mocker.MagicMock(return_value=False)
     player.state = state
 
     return player

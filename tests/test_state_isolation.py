@@ -18,12 +18,11 @@ def test_app_state_mutations_do_not_leak_to_next_test_part_a() -> None:
     state = AppState()
     state.current_song.set(
         {
-            "id": 1,
+            "video_id": "leak",
             "title": "Leak Check",
             "artist": None,
             "album": None,
             "duration": 1,
-            "url": "https://www.youtube.com/watch?v=leak",
         }
     )
     state.playback_state.set(
