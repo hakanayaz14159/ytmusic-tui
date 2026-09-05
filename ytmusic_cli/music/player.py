@@ -5,23 +5,11 @@ import logging
 import vlc
 
 from ytmusic_cli.exceptions import PlaybackError
+from ytmusic_cli.music.stream_proxy import AudioStreamProxy
 from ytmusic_cli.music.types import AudioStream
 from ytmusic_cli.utils.log import redact_url, vlc_log_file_path
 
 logger = logging.getLogger(__name__)
-
-_SKIP_HTTP_HEADERS = frozenset(
-    {
-        "accept-encoding",
-        "content-encoding",
-        "connection",
-        "keep-alive",
-        "transfer-encoding",
-        "te",
-        "host",
-        "content-length",
-    }
-)
 
 
 def _instance_args() -> list[str]:
@@ -54,6 +42,7 @@ class VLCPlayer:
     """AudioPlayerProtocol implementation using python-vlc / libvlc."""
 
     def __init__(self) -> None:
+        self._proxy = AudioStreamProxy()
         try:
             args = _instance_args()
             logger.info("vlc init args=%s version=%s", args, _vlc_version())
@@ -65,42 +54,26 @@ class VLCPlayer:
 
     def play(self, stream: AudioStream) -> None:
         try:
-            url = stream["url"]
-            media = self._instance.media_new(url)
-
-            headers = stream.get("http_headers") or {}
-            applied: list[str] = []
-            skipped: list[str] = []
-            for name, value in headers.items():
-                lowered = name.lower()
-                if lowered in _SKIP_HTTP_HEADERS:
-                    skipped.append(name)
-                    continue
-                if lowered == "user-agent":
-                    media.add_option(f":http-user-agent={value}")
-                elif lowered in ("referer", "referrer"):
-                    media.add_option(f":http-referrer={value}")
-                else:
-                    media.add_option(f":http-extra-header={name}: {value}")
-                applied.append(name)
-
+            local_url = self._proxy.start(stream)
+            media = self._instance.media_new(local_url)
             self._player.set_media(media)
             result = self._player.play()
             logger.info(
-                "play url=%s applied=%s skipped=%s rc=%s",
-                redact_url(url),
-                applied,
-                skipped,
+                "play url=%s via=%s rc=%s",
+                redact_url(stream["url"]),
+                local_url,
                 result,
             )
             if result == -1:
-                logger.error("play rc=-1 url=%s", redact_url(url))
+                logger.error("play rc=-1 url=%s", redact_url(stream["url"]))
                 raise PlaybackError(
-                    f"Failed to play stream: {url} (libvlc returned -1)"
+                    f"Failed to play stream: {stream['url']} (libvlc returned -1)"
                 )
         except PlaybackError:
+            self._proxy.stop()
             raise
         except Exception as err:
+            self._proxy.stop()
             logger.exception("play failed url=%s", redact_url(stream.get("url", "")))
             raise PlaybackError(f"Failed to play URL: {stream.get('url', '')}") from err
 
@@ -119,6 +92,8 @@ class VLCPlayer:
         except Exception as err:
             logger.exception("stop failed")
             raise PlaybackError("Failed to stop playback") from err
+        finally:
+            self._proxy.stop()
 
     def is_playing(self) -> bool:
         try:

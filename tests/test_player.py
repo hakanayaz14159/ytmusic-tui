@@ -2,6 +2,8 @@
 
 from pathlib import Path
 from unittest.mock import MagicMock
+from urllib.error import URLError
+from urllib.request import urlopen
 
 import pytest
 import vlc
@@ -71,33 +73,44 @@ def test_init_uses_verbose_vlc_logfile_when_logging_enabled(
     )
 
 
-def test_play_sets_media_configures_headers_and_plays(mock_vlc: MagicMock) -> None:
+def test_play_uses_proxy_url_not_cdn(mock_vlc: MagicMock) -> None:
     player = VLCPlayer()
     stream: AudioStream = {
         "url": "https://stream.example.com/audio.m4a",
         "http_headers": {
             "User-Agent": "test-agent",
-            "Referer": "https://www.youtube.com/",
-            "Cookie": "SID=abc",
-            "Accept": "audio/*",
-            "Accept-Encoding": "gzip, deflate",
-            "Connection": "keep-alive",
+            "Sec-Fetch-Mode": "cors",
         },
     }
+    try:
+        player.play(stream)
+        local_url = player._instance.media_new.call_args[0][0]
+        assert isinstance(local_url, str)
+        assert local_url.startswith("http://127.0.0.1:")
+        assert "stream.example.com" not in local_url
+        mock_media = player._instance.media_new.return_value
+        extra_calls = [call.args[0] for call in mock_media.add_option.call_args_list]
+        assert not any("http-extra-header" in option for option in extra_calls)
+        mock_vlc.set_media.assert_called_once_with(mock_media)
+        mock_vlc.play.assert_called_once()
+    finally:
+        player.stop()
+
+
+def test_stop_tears_down_proxy(mock_vlc: MagicMock) -> None:
+    player = VLCPlayer()
+    stream: AudioStream = {
+        "url": "https://stream.example.com/audio.m4a",
+        "http_headers": {},
+    }
     player.play(stream)
-    player._instance.media_new.assert_called_once_with(
-        "https://stream.example.com/audio.m4a"
-    )
-    mock_media = player._instance.media_new.return_value
-    mock_media.add_option.assert_any_call(":http-user-agent=test-agent")
-    mock_media.add_option.assert_any_call(":http-referrer=https://www.youtube.com/")
-    mock_media.add_option.assert_any_call(":http-extra-header=Cookie: SID=abc")
-    mock_media.add_option.assert_any_call(":http-extra-header=Accept: audio/*")
-    extra_calls = [call.args[0] for call in mock_media.add_option.call_args_list]
-    assert not any("Accept-Encoding" in option for option in extra_calls)
-    assert not any("Connection" in option for option in extra_calls)
-    mock_vlc.set_media.assert_called_once_with(mock_media)
-    mock_vlc.play.assert_called_once()
+    local_url = player._instance.media_new.call_args[0][0]
+    assert isinstance(local_url, str)
+    assert local_url.startswith("http://127.0.0.1:")
+    player.stop()
+    mock_vlc.stop.assert_called_once()
+    with pytest.raises((URLError, OSError, ConnectionError)):
+        urlopen(local_url, timeout=1)
 
 
 def test_play_raises_playback_error_when_vlc_returns_failure_code(
