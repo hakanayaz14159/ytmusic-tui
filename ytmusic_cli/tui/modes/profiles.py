@@ -58,6 +58,9 @@ class ProfilesMode(Vertical):
         self._users = app.account_service.list_users()
         self._refresh_options()
 
+    def activate(self) -> None:
+        self.query_one("#profile_list", SelectList).focus()
+
     def action_new_profile(self) -> None:
         self.app.push_screen(PromptModal("New profile", "Name"), self._on_new_name)
 

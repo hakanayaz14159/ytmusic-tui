@@ -57,6 +57,9 @@ class PlaylistsMode(Horizontal):
         self._playlists = app.playlist_service.list_playlists(user["id"])
         self._render_lists()
 
+    def activate(self) -> None:
+        self.query_one("#playlist_list", SelectList).focus()
+
     def action_new_playlist(self) -> None:
         self.app.push_screen(PromptModal("New playlist", "Name"), self._on_new_name)
 

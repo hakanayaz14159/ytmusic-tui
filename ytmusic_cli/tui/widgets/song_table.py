@@ -102,6 +102,12 @@ class SongTable(Vertical):
     def selected_index(self) -> int | None:
         return self.query_one(VimListView).index
 
+    def set_selected_index(self, index: int) -> None:
+        if not self._songs:
+            return
+        song_list = self.query_one(VimListView)
+        song_list.index = max(0, min(index, len(self._songs) - 1))
+
     def focus_list(self) -> None:
         self.query_one(VimListView).focus()
 
@@ -128,6 +134,7 @@ class SongTable(Vertical):
     def _rebuild(self) -> None:
         song_list = self.query_one(VimListView)
         previous = song_list.index
+        was_focused = song_list.has_focus
         song_list.clear()
         for song in self._songs:
             playing = (
@@ -138,3 +145,5 @@ class SongTable(Vertical):
             song_list.index = (
                 previous if previous is not None and previous < len(self._songs) else 0
             )
+        if was_focused:
+            song_list.focus()

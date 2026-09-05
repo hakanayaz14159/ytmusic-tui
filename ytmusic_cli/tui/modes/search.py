@@ -67,6 +67,13 @@ class SearchMode(Vertical):
     def focus_query(self) -> None:
         self.query_one("#search_input", Input).focus()
 
+    def activate(self) -> None:
+        table = self.query_one("#results_table", SongTable)
+        if table.display and table.has_songs():
+            table.focus_list()
+            return
+        self.focus_query()
+
     def action_blur_search(self) -> None:
         self.query_one("#results_table", SongTable).focus_list()
 

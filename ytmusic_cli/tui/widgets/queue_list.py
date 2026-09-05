@@ -59,6 +59,11 @@ class QueueList(SongTable):
     def on_queue_list_queue_changed(self, _message: QueueChanged) -> None:
         self._reload()
 
+    def activate_list(self) -> None:
+        index = self._state.queue_index.get()
+        self.set_selected_index(index if index >= 0 else 0)
+        self.focus_list()
+
     def _reload(self) -> None:
         song = self._state.current_song.get()
         self._playing_id = song["video_id"] if song is not None else None

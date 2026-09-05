@@ -61,6 +61,9 @@ class SettingsMode(Vertical):
             self._settings = app.settings_service.get()
         self._refresh_options()
 
+    def activate(self) -> None:
+        self.query_one("#settings_list", SelectList).focus()
+
     def action_save(self) -> None:
         app = cast("YTMusicApp", self.app)
         if app.settings_service is None:

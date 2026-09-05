@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
 
 class QueueMode(Vertical):
+    can_focus = True
+
     class QueueChanged(Message):
         pass
 
@@ -48,6 +50,14 @@ class QueueMode(Vertical):
         if self._unsub_queue is not None:
             self._unsub_queue()
             self._unsub_queue = None
+
+    def activate(self) -> None:
+        self._sync_empty()
+        table = self.query_one("#queue_table", QueueList)
+        if table.has_songs():
+            table.activate_list()
+            return
+        self.focus()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if not isinstance(event.item, SongRow):

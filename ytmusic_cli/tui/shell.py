@@ -87,6 +87,9 @@ class AppShell(Vertical):
         reload = getattr(widget, "reload", None)
         if callable(reload):
             reload()
+        activate = getattr(widget, "activate", None)
+        if callable(activate):
+            activate()
 
     def next_mode(self) -> None:
         index = MODES.index(self.current_mode)

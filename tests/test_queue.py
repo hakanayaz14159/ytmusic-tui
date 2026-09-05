@@ -1,16 +1,59 @@
 """Queue behavior for PlaybackService and Queue mode."""
 
+from typing import Literal
 from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
+from textual.pilot import Pilot
 from textual.widgets import Input
 
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.services import PlaybackService, SearchService
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import PlaybackStatus, PlaybackTickAction, Song
+from ytmusic_cli.tui.modes.queue import QueueMode
 from ytmusic_cli.tui.shell import AppShell
 from ytmusic_cli.tui.widgets.queue_list import QueueList
+from ytmusic_cli.tui.widgets.song_table import VimListView
+
+
+def _make_app(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> tuple[YTMusicApp, AppState]:
+    state = AppState()
+    app = YTMusicApp(
+        search_service=SearchService(mock_youtube),
+        playback_service=PlaybackService(mock_player, mock_youtube, state),
+    )
+    return app, state
+
+
+def _queue_list(app: YTMusicApp) -> VimListView:
+    return app.query_one("#queue_table", QueueList).query_one(VimListView)
+
+
+async def _seed_queue_and_open(
+    pilot: Pilot[None],
+    app: YTMusicApp,
+    songs: list[Song],
+    *,
+    queue_index: int = 0,
+    via: Literal["2", "tab"] = "2",
+) -> None:
+    state = AppState()
+    state.queue.set(songs)
+    state.queue_index.set(queue_index)
+    await pilot.pause()
+    if via == "tab":
+        await pilot.press("tab")
+    else:
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("2")
+    await pilot.pause()
+    assert app.query_one(AppShell).current_mode == "queue"
 
 
 @pytest.fixture
@@ -164,3 +207,125 @@ async def test_search_a_appends_to_queue_and_queue_mode_lists_it(
         assert app.query_one(AppShell).current_mode == "queue"
         queue_table = app.query_one("#queue_table", QueueList)
         assert len(queue_table._songs) >= 1
+
+
+@pytest.mark.asyncio
+async def test_tab_from_search_input_focuses_queue_list(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, _state = _make_app(mock_youtube, mock_player)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.query_one("#search_input", Input).has_focus is True
+        await _seed_queue_and_open(pilot, app, sample_songs, via="tab")
+
+        assert app.query_one("#search_input", Input).has_focus is False
+        assert _queue_list(app).has_focus is True
+
+
+@pytest.mark.asyncio
+async def test_digit_two_focuses_queue_list_at_queue_index(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, _state = _make_app(mock_youtube, mock_player)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs, queue_index=1)
+
+        queue_list = _queue_list(app)
+        assert queue_list.has_focus is True
+        assert queue_list.index == 1
+        assert (
+            app.query_one("#queue_table", QueueList).get_selected_song()
+            == (sample_songs[1])
+        )
+
+
+@pytest.mark.asyncio
+async def test_switching_to_empty_queue_blurs_search_input(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> None:
+    app, _state = _make_app(mock_youtube, mock_player)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.query_one("#search_input", Input).has_focus is True
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert app.query_one(AppShell).current_mode == "queue"
+        assert app.query_one("#search_input", Input).has_focus is False
+        assert app.query_one(QueueMode).has_focus is True
+
+
+@pytest.mark.asyncio
+async def test_queue_j_k_moves_highlight(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, _state = _make_app(mock_youtube, mock_player)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs, queue_index=0)
+
+        queue_list = _queue_list(app)
+        assert queue_list.index == 0
+        await pilot.press("j")
+        await pilot.pause()
+        assert queue_list.index == 1
+        await pilot.press("k")
+        await pilot.pause()
+        assert queue_list.index == 0
+
+
+@pytest.mark.asyncio
+async def test_queue_enter_plays_highlighted_song(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+    mocker: MockerFixture,
+) -> None:
+    app, _state = _make_app(mock_youtube, mock_player)
+    play_song = mocker.patch.object(app, "play_song")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs, queue_index=1)
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        play_song.assert_called_once_with(sample_songs[1])
+
+
+@pytest.mark.asyncio
+async def test_queue_d_removes_highlighted_and_keeps_focus(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, state = _make_app(mock_youtube, mock_player)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs, queue_index=1)
+
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert state.queue.get() == [sample_songs[0]]
+        assert _queue_list(app).has_focus is True
+        assert (
+            app.query_one("#queue_table", QueueList).get_selected_song()
+            == (sample_songs[0])
+        )
