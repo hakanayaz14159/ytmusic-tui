@@ -147,7 +147,8 @@ SearchMode #suggestion_list > .option-list--option-highlighted {
     color: $background;
 }
 
-SearchMode #search_status {
+SearchMode #search_status,
+QueueMode #queue_working {
     height: 1;
     color: $text-muted;
     padding: 0 1;

@@ -22,7 +22,9 @@ Enter        Play now
 a            Append to queue
 A            Add to playlist
 d            Remove (queue or playlist track)
-n            New playlist or profile
+n            New playlist, profile, or save queue
+o            Open playlist into queue
+w            Write queue over working playlist
 s            Save settings
 Esc          Blur search / close dialog
 q            Quit (or close this help)

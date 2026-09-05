@@ -78,25 +78,27 @@ uv run ytmusic-cli --help
 
 ### Key Bindings
 
-| Key             | Action                                           |
-| --------------- | ------------------------------------------------ |
-| `/`             | Search and focus the query field                 |
-| `1`–`5`         | Search / Queue / Playlists / Profiles / Settings |
-| `Tab`           | Next mode                                        |
-| `Space`         | Play / pause                                     |
-| `+` / `=` / `-` | Volume up / down                                 |
-| `>` / `<`       | Next / previous in queue                         |
-| `j` / `k`       | Move in lists                                    |
-| `Enter`         | Play the highlighted track                       |
-| `a`             | Append highlighted track to the queue            |
-| `A`             | Add highlighted track to a playlist              |
-| `d`             | Remove from queue or playlist                    |
-| `n`             | New playlist or profile                          |
-| `s`             | Save settings                                    |
-| `?`             | Help                                             |
-| `Esc`           | Blur search / close a dialog                     |
-| `q`             | Quit (when not typing)                           |
-| `Ctrl+q`        | Quit                                             |
+| Key             | Action                                             |
+| --------------- | -------------------------------------------------- |
+| `/`             | Search and focus the query field                   |
+| `1`–`5`         | Search / Queue / Playlists / Profiles / Settings   |
+| `Tab`           | Next mode                                          |
+| `Space`         | Play / pause                                       |
+| `+` / `=` / `-` | Volume up / down                                   |
+| `>` / `<`       | Next / previous in queue                           |
+| `j` / `k`       | Move in lists                                      |
+| `Enter`         | Play the highlighted track                         |
+| `a`             | Append highlighted track to the queue              |
+| `A`             | Add highlighted or now-playing track to a playlist |
+| `d`             | Remove from queue or playlist                      |
+| `n`             | New playlist or profile; save queue as playlist    |
+| `o`             | Open a playlist into the queue (Queue mode)        |
+| `w`             | Overwrite the working playlist from the queue      |
+| `s`             | Save settings                                      |
+| `?`             | Help                                               |
+| `Esc`           | Blur search / close a dialog                       |
+| `q`             | Quit (when not typing)                             |
+| `Ctrl+q`        | Quit                                               |
 
 ---
 

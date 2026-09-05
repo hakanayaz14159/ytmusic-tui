@@ -28,11 +28,14 @@ from ytmusic_cli.music.types import (
     PlaybackStatus,
     PlaybackTickAction,
     Song,
+    User,
 )
 from ytmusic_cli.music.youtube import Youtube
 from ytmusic_cli.theme import ytmusic_theme
 from ytmusic_cli.tui.modals.add_to_playlist import AddToPlaylistModal
+from ytmusic_cli.tui.modals.confirm import ConfirmModal
 from ytmusic_cli.tui.modals.help import HelpModal
+from ytmusic_cli.tui.modals.prompt import PromptModal
 from ytmusic_cli.tui.shell import AppShell
 from ytmusic_cli.tui.widgets.song_table import SongTable
 from ytmusic_cli.utils.log import configure_logging
@@ -64,6 +67,7 @@ class YTMusicApp(App[None]):
         Binding("5", "mode_settings", show=False),
         Binding("tab", "next_mode", show=False, priority=True),
         Binding("shift+tab", "previous_mode", show=False, priority=True),
+        Binding("A,shift+a", "add_to_playlist", show=False),
     ]
 
     def __init__(
@@ -184,17 +188,20 @@ class YTMusicApp(App[None]):
     def action_previous_mode(self) -> None:
         self._shell().previous_mode()
 
+    def action_add_to_playlist(self) -> None:
+        if self._focused_is_input():
+            return
+        song = self._playlist_target_song()
+        if song is None:
+            self.notify("Nothing to add to a playlist", severity="warning")
+            return
+        self.add_song_to_playlist(song)
+
     def on_song_table_append_requested(
         self,
         message: SongTable.AppendRequested,
     ) -> None:
         self.append_song(message.song)
-
-    def on_song_table_playlist_requested(
-        self,
-        message: SongTable.PlaylistRequested,
-    ) -> None:
-        self.add_song_to_playlist(message.song)
 
     @work(thread=True, exclusive=True, group="playback")
     def play_song(self, song: Song) -> None:
@@ -243,6 +250,101 @@ class YTMusicApp(App[None]):
             return
         self.call_from_thread(self._begin_playback, song, stream)
 
+    def load_playlist_into_queue(
+        self,
+        playlist_id: int,
+        *,
+        play: bool,
+        start_index: int = 0,
+    ) -> None:
+        context = self._require_playlist_context()
+        if context is None:
+            return
+        service, _user = context
+        try:
+            playlist = service.get_playlist(playlist_id)
+            if play:
+                self.playback_service.set_queue(playlist["songs"], start_index)
+            else:
+                self.playback_service.load_queue(playlist["songs"])
+        except YTMusicError as err:
+            logger.exception("playlist load failed id=%s", playlist_id)
+            self.notify(str(err), severity="error")
+            return
+        AppState().current_playlist.set(playlist)
+        if play:
+            self.play_playlist(playlist["songs"], start_index)
+            return
+        self.notify(f"Working: {playlist['name']}", severity="information")
+
+    def prompt_open_working_playlist(self) -> None:
+        context = self._require_playlist_context()
+        if context is None:
+            return
+        service, user = context
+        playlists = service.list_playlists(user["id"])
+        self.push_screen(
+            AddToPlaylistModal(playlists, title="Open playlist"),
+            self._on_open_working_playlist,
+        )
+
+    def prompt_save_queue_as_playlist(self) -> None:
+        if not AppState().queue.get():
+            self.notify("Queue is empty", severity="warning")
+            return
+        if self._require_playlist_context() is None:
+            return
+        self.push_screen(
+            PromptModal("Save queue as playlist", "Name"),
+            self._on_save_queue_name,
+        )
+
+    def prompt_overwrite_working_playlist(self) -> None:
+        working = AppState().current_playlist.get()
+        if working is None:
+            self.notify(
+                "No working playlist. Press o to open one or n to save as new.",
+                severity="warning",
+            )
+            return
+        self.push_screen(
+            ConfirmModal(f"Overwrite “{working['name']}” with the current queue?"),
+            self._on_confirm_overwrite_working,
+        )
+
+    def save_queue_as_playlist(self, name: str) -> None:
+        context = self._require_playlist_context()
+        if context is None:
+            return
+        service, user = context
+        try:
+            playlist = service.create_playlist_from_songs(
+                user["id"],
+                name,
+                AppState().queue.get(),
+            )
+        except YTMusicError as err:
+            logger.exception("queue save as playlist failed")
+            self.notify(str(err), severity="error")
+            return
+        AppState().current_playlist.set(playlist)
+        self.notify(f"Saved playlist {playlist['name']}", severity="information")
+
+    def overwrite_working_playlist(self) -> None:
+        context = self._require_playlist_context()
+        working = AppState().current_playlist.get()
+        if context is None or working is None:
+            return
+        service, _user = context
+        try:
+            playlist = service.replace_songs(working["id"], AppState().queue.get())
+        except YTMusicError as err:
+            logger.exception("working playlist overwrite failed")
+            self.notify(str(err), severity="error")
+            return
+        AppState().current_playlist.set(playlist)
+        self.notify(f"Updated {playlist['name']}", severity="information")
+
     @work(thread=True, exclusive=True, group="playback")
     def play_playlist(self, songs: list[Song], start_index: int) -> None:
         logger.info("playlist play count=%s start_index=%s", len(songs), start_index)
@@ -270,21 +372,17 @@ class YTMusicApp(App[None]):
             self.play_song(song)
 
     def add_song_to_playlist(self, song: Song) -> None:
-        if self.playlist_service is None:
-            self.notify("Playlists are unavailable", severity="warning")
+        context = self._require_playlist_context()
+        if context is None:
             return
-        user = AppState().current_user.get()
-        if user is None:
-            self.notify("Create a profile to use playlists", severity="warning")
-            self._shell().switch_mode("profiles")
-            return
-        playlists = self.playlist_service.list_playlists(user["id"])
+        service, user = context
+        playlists = service.list_playlists(user["id"])
 
         def _on_pick(playlist_id: int | None) -> None:
-            if playlist_id is None or self.playlist_service is None:
+            if playlist_id is None:
                 return
             try:
-                self.playlist_service.add_song(playlist_id, song)
+                service.add_song(playlist_id, song)
             except YTMusicError as err:
                 logger.exception("playlist add failed id=%s", playlist_id)
                 self.notify(str(err), severity="error")
@@ -369,6 +467,43 @@ class YTMusicApp(App[None]):
             )
             return
         self.call_from_thread(self._begin_playback, song, stream)
+
+    def _require_playlist_context(self) -> tuple[PlaylistService, User] | None:
+        if self.playlist_service is None:
+            self.notify("Playlists are unavailable", severity="warning")
+            return None
+        user = AppState().current_user.get()
+        if user is None:
+            self.notify("Create a profile to use playlists", severity="warning")
+            self._shell().switch_mode("profiles")
+            return None
+        return self.playlist_service, user
+
+    def _playlist_target_song(self) -> Song | None:
+        focused = self.focused
+        if focused is not None:
+            for node in focused.ancestors_with_self:
+                if isinstance(node, SongTable):
+                    selected = node.get_selected_song()
+                    if selected is not None:
+                        return selected
+                    break
+        return AppState().current_song.get()
+
+    def _on_open_working_playlist(self, playlist_id: int | None) -> None:
+        if playlist_id is None:
+            return
+        self.load_playlist_into_queue(playlist_id, play=False)
+
+    def _on_save_queue_name(self, name: str | None) -> None:
+        if name is None:
+            return
+        self.save_queue_as_playlist(name)
+
+    def _on_confirm_overwrite_working(self, confirmed: bool | None) -> None:
+        if not confirmed:
+            return
+        self.overwrite_working_playlist()
 
     def _shell(self) -> AppShell:
         return self.query_one(AppShell)

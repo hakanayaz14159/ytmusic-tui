@@ -94,7 +94,7 @@ class PlaylistsMode(Horizontal):
         if playlist is None:
             return
         app = cast("YTMusicApp", self.app)
-        app.play_playlist(playlist["songs"], 0)
+        app.load_playlist_into_queue(playlist["id"], play=True, start_index=0)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if not isinstance(event.item, SongRow):
@@ -105,7 +105,7 @@ class PlaylistsMode(Horizontal):
         if playlist is None or index is None:
             return
         app = cast("YTMusicApp", self.app)
-        app.play_playlist(playlist["songs"], index)
+        app.load_playlist_into_queue(playlist["id"], play=True, start_index=index)
 
     def on_song_table_delete_requested(
         self,
@@ -170,6 +170,11 @@ class PlaylistsMode(Horizontal):
             option_list.add_option(Option(playlist["name"], id=f"pl_{playlist['id']}"))
         if self._playlists and self._selected_id is None:
             self._selected_id = self._playlists[0]["id"]
+        if self._playlists:
+            for index, playlist in enumerate(self._playlists):
+                if playlist["id"] == self._selected_id:
+                    option_list.highlighted = index
+                    break
         self._render_tracks()
 
     def _render_tracks(self) -> None:

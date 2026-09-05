@@ -4,14 +4,24 @@ from typing import Literal
 from unittest.mock import MagicMock
 
 import pytest
+from peewee import SqliteDatabase
 from pytest_mock import MockerFixture
 from textual.pilot import Pilot
-from textual.widgets import Input
+from textual.widgets import Input, Label
 
+from ytmusic_cli.db.repositories import PlaylistRepository, UserRepository
 from ytmusic_cli.main import YTMusicApp
-from ytmusic_cli.music.services import PlaybackService, SearchService
+from ytmusic_cli.music.services import (
+    AccountService,
+    PlaybackService,
+    PlaylistService,
+    SearchService,
+)
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackStatus, PlaybackTickAction, Song
+from ytmusic_cli.music.types import PlaybackStatus, PlaybackTickAction, Song, User
+from ytmusic_cli.tui.modals.add_to_playlist import AddToPlaylistModal
+from ytmusic_cli.tui.modals.confirm import ConfirmModal
+from ytmusic_cli.tui.modals.prompt import PromptModal
 from ytmusic_cli.tui.modes.queue import QueueMode
 from ytmusic_cli.tui.shell import AppShell
 from ytmusic_cli.tui.widgets.queue_list import QueueList
@@ -160,6 +170,46 @@ def test_sync_playback_signals_ended_without_starting_next(
     assert state.queue_index.get() == 0
     assert state.current_song.get() == sample_songs[0]
     mock_youtube.get_stream.assert_not_called()
+
+
+def test_load_queue_aligns_index_to_current_song(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    state = AppState()
+    service = PlaybackService(mock_player, mock_youtube, state)
+    state.current_song.set(sample_songs[1])
+
+    song = service.load_queue(sample_songs)
+
+    assert song == sample_songs[1]
+    assert state.queue.get() == sample_songs
+    assert state.queue_index.get() == 1
+    mock_player.play.assert_not_called()
+
+
+def test_load_queue_starts_at_zero_when_current_song_absent(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    state = AppState()
+    service = PlaybackService(mock_player, mock_youtube, state)
+    extra: Song = {
+        "video_id": "other",
+        "title": "Other",
+        "artist": "C",
+        "album": None,
+        "duration": 90,
+    }
+    state.current_song.set(extra)
+
+    song = service.load_queue(sample_songs)
+
+    assert song == sample_songs[0]
+    assert state.queue_index.get() == 0
+    mock_player.play.assert_not_called()
 
 
 def test_play_previous_moves_back(
@@ -329,3 +379,150 @@ async def test_queue_d_removes_highlighted_and_keeps_focus(
             app.query_one("#queue_table", QueueList).get_selected_song()
             == (sample_songs[0])
         )
+
+
+def _make_playlist_app(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> tuple[YTMusicApp, PlaylistService, AppState, User]:
+    state = AppState()
+    accounts = AccountService(UserRepository(), state)
+    user = accounts.ensure_default_user()
+    accounts.select_user(user["id"])
+    playlists = PlaylistService(PlaylistRepository())
+    app = YTMusicApp(
+        search_service=SearchService(mock_youtube),
+        playback_service=PlaybackService(mock_player, mock_youtube, state),
+        account_service=accounts,
+        playlist_service=playlists,
+    )
+    return app, playlists, state, user
+
+
+@pytest.mark.asyncio
+async def test_queue_o_loads_playlist_without_playing(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, playlists, state, user = _make_playlist_app(mock_youtube, mock_player)
+    playlists.create_playlist_from_songs(user["id"], "Late Night", sample_songs)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+        await pilot.press("o")
+        await pilot.pause()
+        assert isinstance(app.screen, AddToPlaylistModal)
+        await pilot.press("enter")
+        await pilot.pause()
+
+        working = state.current_playlist.get()
+        assert working is not None
+        assert working["name"] == "Late Night"
+        assert [song["video_id"] for song in state.queue.get()] == ["one", "two"]
+        mock_player.play.assert_not_called()
+        working_label = app.query_one("#queue_working", Label)
+        assert "Late Night" in str(working_label.content)
+
+
+@pytest.mark.asyncio
+async def test_queue_n_saves_queue_as_new_playlist(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, playlists, state, user = _make_playlist_app(mock_youtube, mock_player)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs)
+        await pilot.press("n")
+        await pilot.pause()
+        assert isinstance(app.screen, PromptModal)
+        app.screen.query_one("#prompt_input", Input).value = "From Queue"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        listed = playlists.list_playlists(user["id"])
+        assert len(listed) == 1
+        assert listed[0]["name"] == "From Queue"
+        assert [song["video_id"] for song in listed[0]["songs"]] == ["one", "two"]
+        working = state.current_playlist.get()
+        assert working is not None
+        assert working["name"] == "From Queue"
+
+
+@pytest.mark.asyncio
+async def test_queue_n_on_empty_queue_does_not_create(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> None:
+    app, playlists, _state, user = _make_playlist_app(mock_youtube, mock_player)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+
+        assert not isinstance(app.screen, PromptModal)
+        assert playlists.list_playlists(user["id"]) == []
+
+
+@pytest.mark.asyncio
+async def test_queue_w_overwrites_working_playlist(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, playlists, state, user = _make_playlist_app(mock_youtube, mock_player)
+    created = playlists.create_playlist_from_songs(
+        user["id"],
+        "Late Night",
+        [sample_songs[0]],
+    )
+    state.current_playlist.set(created)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs)
+        await pilot.press("w")
+        await pilot.pause()
+        assert isinstance(app.screen, ConfirmModal)
+        await pilot.press("y")
+        await pilot.pause()
+
+        loaded = playlists.get_playlist(created["id"])
+        assert [song["video_id"] for song in loaded["songs"]] == ["one", "two"]
+
+
+@pytest.mark.asyncio
+async def test_queue_w_without_working_playlist_does_not_write(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, playlists, _state, user = _make_playlist_app(mock_youtube, mock_player)
+    existing = playlists.create_playlist_from_songs(
+        user["id"],
+        "Keep",
+        [sample_songs[0]],
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs)
+        await pilot.press("w")
+        await pilot.pause()
+
+        assert not isinstance(app.screen, ConfirmModal)
+        loaded = playlists.get_playlist(existing["id"])
+        assert [song["video_id"] for song in loaded["songs"]] == ["one"]

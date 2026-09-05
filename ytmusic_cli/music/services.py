@@ -118,6 +118,16 @@ class PlaybackService:
         if status == PlaybackStatus.STOPPED:
             self.play_song(song)
 
+    def load_queue(self, songs: list[Song]) -> Song:
+        current = self._state.current_song.get()
+        index = 0
+        if current is not None:
+            for position, item in enumerate(songs):
+                if item["video_id"] == current["video_id"]:
+                    index = position
+                    break
+        return self.set_queue(songs, index)
+
     def set_queue(self, songs: list[Song], start_index: int = 0) -> Song:
         if not songs:
             logger.warning("set_queue rejected empty playlist")
@@ -437,6 +447,22 @@ class PlaylistService:
             logger.warning("playlist missing id=%s", playlist_id)
             raise ValidationError("Playlist not found")
         return playlist
+
+    def create_playlist_from_songs(
+        self,
+        user_id: int,
+        name: str,
+        songs: list[Song],
+    ) -> Playlist:
+        if not songs:
+            logger.warning("playlist create from songs rejected empty list")
+            raise ValidationError("Playlist songs must not be empty")
+        playlist = self.create_playlist(user_id, name)
+        return self.replace_songs(playlist["id"], songs)
+
+    def replace_songs(self, playlist_id: int, songs: list[Song]) -> Playlist:
+        logger.info("playlist replace id=%s count=%s", playlist_id, len(songs))
+        return self._playlists.replace_songs(playlist_id, songs)
 
     def add_song(self, playlist_id: int, song: Song) -> None:
         logger.info(

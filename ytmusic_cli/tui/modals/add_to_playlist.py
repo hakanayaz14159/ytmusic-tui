@@ -19,13 +19,18 @@ class AddToPlaylistModal(ModalScreen[int | None]):
         Binding("q", "cancel", "Cancel", show=False),
     ]
 
-    def __init__(self, playlists: list[Playlist]) -> None:
+    def __init__(
+        self,
+        playlists: list[Playlist],
+        title: str = "Add to playlist",
+    ) -> None:
         super().__init__()
         self._playlists = playlists
+        self._title = title
 
     def compose(self) -> ComposeResult:
         with Vertical(id="picker_panel"):
-            yield Static("Add to playlist")
+            yield Static(self._title)
             if not self._playlists:
                 yield Static("No playlists yet. Create one in Playlists.")
             else:
@@ -39,7 +44,9 @@ class AddToPlaylistModal(ModalScreen[int | None]):
 
     def on_mount(self) -> None:
         if self._playlists:
-            self.query_one("#playlist_picker", SelectList).focus()
+            picker = self.query_one("#playlist_picker", SelectList)
+            picker.highlighted = 0
+            picker.focus()
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         option_id = event.option.id

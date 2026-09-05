@@ -1,15 +1,16 @@
 """Queue mode: the upcoming play list."""
 
 from collections.abc import Callable  # noqa: TC003
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from textual.app import ComposeResult
+from textual.binding import Binding, BindingType
 from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Label, ListView
 
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import Song
+from ytmusic_cli.music.types import Playlist, Song
 from ytmusic_cli.tui.widgets.queue_list import QueueList
 from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable
 
@@ -20,7 +21,16 @@ if TYPE_CHECKING:
 class QueueMode(Vertical):
     can_focus = True
 
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("o", "open_playlist", show=False),
+        Binding("n", "save_as_playlist", show=False),
+        Binding("w", "overwrite_playlist", show=False),
+    ]
+
     class QueueChanged(Message):
+        pass
+
+    class WorkingChanged(Message):
         pass
 
     def __init__(
@@ -34,8 +44,10 @@ class QueueMode(Vertical):
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
         self._state = AppState()
         self._unsub_queue: Callable[[], None] | None = None
+        self._unsub_working: Callable[[], None] | None = None
 
     def compose(self) -> ComposeResult:
+        yield Label("", id="queue_working")
         yield Label(
             "Queue is empty. Press a on a search result to add tracks.",
             id="queue_empty",
@@ -44,20 +56,35 @@ class QueueMode(Vertical):
 
     def on_mount(self) -> None:
         self._unsub_queue = self._state.queue.subscribe(self._on_queue)
+        self._unsub_working = self._state.current_playlist.subscribe(self._on_working)
         self._sync_empty()
+        self._sync_working()
 
     def on_unmount(self) -> None:
         if self._unsub_queue is not None:
             self._unsub_queue()
             self._unsub_queue = None
+        if self._unsub_working is not None:
+            self._unsub_working()
+            self._unsub_working = None
 
     def activate(self) -> None:
         self._sync_empty()
+        self._sync_working()
         table = self.query_one("#queue_table", QueueList)
         if table.has_songs():
             table.activate_list()
             return
         self.focus()
+
+    def action_open_playlist(self) -> None:
+        cast("YTMusicApp", self.app).prompt_open_working_playlist()
+
+    def action_save_as_playlist(self) -> None:
+        cast("YTMusicApp", self.app).prompt_save_queue_as_playlist()
+
+    def action_overwrite_playlist(self) -> None:
+        cast("YTMusicApp", self.app).prompt_overwrite_working_playlist()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if not isinstance(event.item, SongRow):
@@ -77,8 +104,25 @@ class QueueMode(Vertical):
         if self.is_mounted:
             self.post_message(self.QueueChanged())
 
+    def _on_working(self, _playlist: Playlist | None) -> None:
+        if self.is_mounted:
+            self.post_message(self.WorkingChanged())
+
     def on_queue_mode_queue_changed(self, _message: QueueChanged) -> None:
         self._sync_empty()
+
+    def on_queue_mode_working_changed(self, _message: WorkingChanged) -> None:
+        self._sync_working()
+
+    def _sync_working(self) -> None:
+        label = self.query_one("#queue_working", Label)
+        working = self._state.current_playlist.get()
+        if working is None:
+            label.update("")
+            label.display = False
+            return
+        label.update(f"Working: {working['name']}")
+        label.display = True
 
     def _sync_empty(self) -> None:
         is_empty = len(self._state.queue.get()) == 0

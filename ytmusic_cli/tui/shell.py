@@ -28,7 +28,9 @@ HINTS: dict[str, str] = {
     "search": (
         "enter play   down/up complete   a queue   A playlist   j/k move   / search   ? help"
     ),
-    "queue": "enter play   d remove   > next   space pause   ? help",
+    "queue": (
+        "enter play   d remove   o open   n save   w write   A playlist   ? help"
+    ),
     "playlists": "enter play   n new   d delete   A add   ? help",
     "profiles": "enter select   n new   d delete   ? help",
     "settings": "j/k field   ←/→ adjust   s save   ? help",

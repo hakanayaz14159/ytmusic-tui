@@ -36,16 +36,10 @@ class SongTable(Vertical):
 
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("a", "append_selected", show=False),
-        Binding("shift+a", "playlist_selected", show=False),
         Binding("d", "delete_selected", show=False),
     ]
 
     class AppendRequested(Message):
-        def __init__(self, song: Song) -> None:
-            super().__init__()
-            self.song = song
-
-    class PlaylistRequested(Message):
         def __init__(self, song: Song) -> None:
             super().__init__()
             self.song = song
@@ -117,11 +111,6 @@ class SongTable(Vertical):
         song = self.get_selected_song()
         if song is not None:
             self.post_message(self.AppendRequested(song))
-
-    def action_playlist_selected(self) -> None:
-        song = self.get_selected_song()
-        if song is not None:
-            self.post_message(self.PlaylistRequested(song))
 
     def action_delete_selected(self) -> None:
         if not self.allow_delete:

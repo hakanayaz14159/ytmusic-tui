@@ -28,11 +28,22 @@ def _to_song(row: DbSong) -> Song:
     }
 
 
+def _playlist_songs(row: DbPlaylist) -> list[Song]:
+    through = DbPlaylist.songs.get_through_model()
+    query = (
+        DbSong.select()
+        .join(through)
+        .where(through.playlist == row)
+        .order_by(through.id)
+    )
+    return [_to_song(song) for song in query]
+
+
 def _to_playlist(row: DbPlaylist) -> Playlist:
     return {
         "id": int(row.id),
         "name": str(row.name),
-        "songs": [_to_song(song) for song in row.songs],
+        "songs": _playlist_songs(row),
     }
 
 
@@ -133,6 +144,26 @@ class PlaylistRepository:
         if row is None:
             raise DatabaseError(f"Song {video_id} not found")
         playlist.songs.remove(row)
+
+    def replace_songs(self, playlist_id: int, songs: list[Song]) -> Playlist:
+        playlist = DbPlaylist.get_or_none(DbPlaylist.id == playlist_id)
+        if playlist is None:
+            raise DatabaseError(f"Playlist {playlist_id} not found")
+        playlist.songs.clear()
+        seen: set[str] = set()
+        song_repo = SongRepository()
+        for song in songs:
+            video_id = song["video_id"]
+            if video_id in seen:
+                continue
+            seen.add(video_id)
+            song_repo.upsert(song)
+            row = DbSong.get(DbSong.video_id == video_id)
+            playlist.songs.add(row)
+        loaded = self.get(playlist_id)
+        if loaded is None:
+            raise DatabaseError(f"Playlist {playlist_id} not found")
+        return loaded
 
     def delete(self, playlist_id: int) -> None:
         deleted = DbPlaylist.delete().where(DbPlaylist.id == playlist_id).execute()
