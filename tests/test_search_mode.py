@@ -1,5 +1,6 @@
 """Textual pilot tests for Search mode."""
 
+import threading
 from unittest.mock import MagicMock
 
 import pytest
@@ -140,3 +141,106 @@ async def test_search_results_show_duration(
         row = table.query_one(SongRow)
         assert "04:00" in format_song_line(SAMPLE_SONGS[0])
         assert "04:00" in str(row.query_one(Label).content)
+
+
+def test_format_song_line_uses_unknown_uploader_fallback() -> None:
+    song: Song = {
+        "video_id": "missing01",
+        "title": "Untitled",
+        "artist": None,
+        "album": None,
+        "duration": 12,
+    }
+
+    line = format_song_line(song)
+
+    assert "Unknown Uploader" in line
+    assert "Unknown Artist" not in line
+
+
+@pytest.mark.asyncio
+async def test_song_table_header_labels_uploader_not_artist(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        table = app.query_one("#results_table", SongTable)
+        header = str(table.query_one("#song_table_header", Label).content)
+
+        assert "Uploader" in header
+        assert "Artist" not in header
+
+
+@pytest.mark.asyncio
+async def test_search_status_shows_searching_then_count_and_hides_stale_table(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def _blocked_search(query: str, max_results: int = 10) -> list[Song]:
+        started.set()
+        if not release.wait(timeout=5):
+            raise TimeoutError("search was not released")
+        return SAMPLE_SONGS
+
+    mock_search_service.search.side_effect = _blocked_search
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        status = app.query_one("#search_status", Label)
+        table = app.query_one("#results_table", SongTable)
+        assert "Type a query and press Enter." in str(status.content)
+        idle_visible = table.display
+        assert idle_visible is False
+
+        app.query_one("#search_input", Input).value = "ambient"
+        await pilot.press("enter")
+        for _ in range(20):
+            if started.is_set():
+                break
+            await pilot.pause()
+
+        assert started.is_set()
+        assert "Searching “ambient”" in str(status.content)
+        searching_visible = table.display
+        assert searching_visible is False
+
+        release.set()
+        visible = False
+        for _ in range(20):
+            visible = table.display
+            if visible:
+                break
+            await pilot.pause()
+
+        assert visible is True
+        assert "2 results for “ambient”" in str(status.content)
+        assert len(table._songs) == len(SAMPLE_SONGS)
+
+
+@pytest.mark.asyncio
+async def test_search_status_reports_no_results_for_query(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    mock_search_service.search.return_value = []
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.query_one("#search_input", Input).value = "xyz"
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        status = app.query_one("#search_status", Label)
+        table = app.query_one("#results_table", SongTable)
+        assert "No results for “xyz”." in str(status.content)
+        no_results_visible = table.display
+        assert no_results_visible is False

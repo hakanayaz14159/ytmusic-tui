@@ -145,3 +145,33 @@ async def test_now_playing_updates_when_state_changed_from_worker_thread() -> No
         assert "▶" in text
         assert "Thread Song" in text
         assert "75%" in text
+
+
+@pytest.mark.asyncio
+async def test_now_playing_uses_unknown_uploader_when_artist_missing() -> None:
+    app = NowPlayingApp()
+    song: Song = {
+        "video_id": "none01",
+        "title": "No Credit",
+        "artist": None,
+        "album": None,
+        "duration": 90,
+    }
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        state = AppState()
+        state.current_song.set(song)
+        state.playback_state.set(
+            {
+                "status": PlaybackStatus.PLAYING,
+                "volume": 50,
+                "position": 0.0,
+                "duration": 90,
+            }
+        )
+        await pilot.pause()
+
+        text = _bar_text(app)
+        assert "Unknown Uploader" in text
+        assert "Unknown Artist" not in text

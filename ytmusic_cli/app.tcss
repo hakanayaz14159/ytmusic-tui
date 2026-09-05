@@ -134,20 +134,10 @@ SearchMode #search_input:focus {
     border: tall $accent;
 }
 
-SearchMode #search_empty {
-    height: 1fr;
+SearchMode #search_status {
+    height: 1;
     color: $text-muted;
-    content-align: center middle;
-}
-
-SearchMode #search_loading {
-    display: none;
-    height: 3;
-    margin: 0 1;
-}
-
-SearchMode #search_loading.-visible {
-    display: block;
+    padding: 0 1;
 }
 
 SongTable {

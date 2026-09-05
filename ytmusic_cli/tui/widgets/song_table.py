@@ -9,7 +9,11 @@ from textual.message import Message
 from textual.widgets import Label, ListItem, ListView
 
 from ytmusic_cli.music.types import Song
-from ytmusic_cli.tui.format import format_song_line
+from ytmusic_cli.tui.format import (
+    SONG_TITLE_WIDTH,
+    SONG_UPLOADER_WIDTH,
+    format_song_line,
+)
 
 
 class SongRow(ListItem):
@@ -28,7 +32,7 @@ class VimListView(ListView):
 
 
 class SongTable(Vertical):
-    """Title / artist / duration list used by Search, Queue, and Playlists."""
+    """Title / uploader / duration list used by Search, Queue, and Playlists."""
 
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("a", "append_selected", show=False),
@@ -70,10 +74,14 @@ class SongTable(Vertical):
 
     def compose(self) -> ComposeResult:
         yield Label(
-            "  Title                                 Artist                  Time",
+            f"  {'Title':<{SONG_TITLE_WIDTH}}  "
+            f"{'Uploader':<{SONG_UPLOADER_WIDTH}}  Time",
             id="song_table_header",
         )
         yield VimListView()
+
+    def has_songs(self) -> bool:
+        return bool(self._songs)
 
     def set_songs(self, songs: list[Song]) -> None:
         self._songs = list(songs)

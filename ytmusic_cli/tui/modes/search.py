@@ -8,7 +8,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Vertical
 from textual.message import Message
-from textual.widgets import Input, Label, ListView, LoadingIndicator
+from textual.widgets import Input, Label, ListView
 
 from ytmusic_cli.consts import DEFAULT_SEARCH_LIMIT
 from ytmusic_cli.exceptions import YTMusicError
@@ -18,6 +18,8 @@ from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable
 
 if TYPE_CHECKING:
     from ytmusic_cli.main import YTMusicApp
+
+_IDLE_STATUS = "Type a query and press Enter."
 
 
 class SearchMode(Vertical):
@@ -49,13 +51,12 @@ class SearchMode(Vertical):
             placeholder="Search YouTube Music…",
             id="search_input",
         )
-        yield LoadingIndicator(id="search_loading")
-        yield Label("Type a query and press Enter.", id="search_empty")
+        yield Label(_IDLE_STATUS, id="search_status")
         yield SongTable(id="results_table")
 
     def on_mount(self) -> None:
         self._unsub_song = self._state.current_song.subscribe(self._on_song)
-        self._show_empty(True)
+        self._set_table_visible(False)
         self.query_one("#search_input", Input).focus()
 
     def on_unmount(self) -> None:
@@ -76,7 +77,7 @@ class SearchMode(Vertical):
         if not query:
             self.app.notify("Please enter a search query", severity="warning")
             return
-        self._set_loading(True)
+        self._begin_search(query)
         self._run_search(query)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -98,25 +99,30 @@ class SearchMode(Vertical):
         except YTMusicError as err:
             app.call_from_thread(self._on_search_error, str(err) or "Search failed")
             return
-        app.call_from_thread(self._on_search_success, results)
+        app.call_from_thread(self._on_search_success, query, results)
 
-    def _on_search_success(self, results: list[Song]) -> None:
-        self._set_loading(False)
+    def _begin_search(self, query: str) -> None:
+        self._set_status(f"Searching “{query}”…")
+        self._set_table_visible(False)
+
+    def _on_search_success(self, query: str, results: list[Song]) -> None:
         table = self.query_one("#results_table", SongTable)
         song = self._state.current_song.get()
         table.set_playing_id(song["video_id"] if song is not None else None)
         table.set_songs(results)
-        self._show_empty(len(results) == 0)
         if results:
+            self._set_status(f"{len(results)} results for “{query}”")
+            self._set_table_visible(True)
             table.focus_list()
-            empty = self.query_one("#search_empty", Label)
-            empty.update("No results.")
-        else:
-            self.query_one("#search_empty", Label).update("No results.")
-            self.notify("No results", severity="information")
+            return
+        self._set_status(f"No results for “{query}”.")
+        self._set_table_visible(False)
+        self.notify("No results", severity="information")
 
     def _on_search_error(self, message: str) -> None:
-        self._set_loading(False)
+        table = self.query_one("#results_table", SongTable)
+        self._set_status("Search failed.")
+        self._set_table_visible(table.has_songs())
         self.notify(message, severity="error")
 
     def _on_song(self, song: Song | None) -> None:
@@ -128,10 +134,8 @@ class SearchMode(Vertical):
         song = message.song
         table.set_playing_id(song["video_id"] if song is not None else None)
 
-    def _set_loading(self, is_loading: bool) -> None:
-        loading = self.query_one("#search_loading", LoadingIndicator)
-        loading.set_class(is_loading, "-visible")
+    def _set_status(self, text: str) -> None:
+        self.query_one("#search_status", Label).update(text)
 
-    def _show_empty(self, is_empty: bool) -> None:
-        self.query_one("#search_empty", Label).display = is_empty
-        self.query_one("#results_table", SongTable).display = not is_empty
+    def _set_table_visible(self, visible: bool) -> None:
+        self.query_one("#results_table", SongTable).display = visible

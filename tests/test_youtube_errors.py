@@ -177,6 +177,19 @@ def test_convert_entry_to_song_returns_none_without_id(
     assert youtube_no_init._convert_entry_to_song({"title": "No ID"}) is None
 
 
+def test_convert_entry_to_song_defaults_missing_uploader_to_unknown_uploader(
+    youtube_no_init: Youtube,
+) -> None:
+    entry: dict[str, Any] = {
+        "id": "noidcredit1",
+        "title": "No Credit",
+        "duration": 90,
+    }
+    song = youtube_no_init._convert_entry_to_song(entry)
+    assert song is not None
+    assert song["artist"] == "Unknown Uploader"
+
+
 def test_convert_entry_to_song_treats_none_duration_as_zero(
     youtube_no_init: Youtube,
 ) -> None:

@@ -3,6 +3,10 @@
 from ytmusic_cli.consts import MAX_VOLUME
 from ytmusic_cli.music.types import Song
 
+SONG_TITLE_WIDTH = 36
+SONG_UPLOADER_WIDTH = 22
+UNKNOWN_UPLOADER = "Unknown Uploader"
+
 
 def format_duration(seconds: float | int) -> str:
     total = max(0, int(seconds))
@@ -29,9 +33,9 @@ def format_volume_gauge(volume: int, width: int = 6) -> str:
 
 def format_song_line(song: Song, *, playing: bool = False) -> str:
     marker = "♫" if playing else " "
-    title = _fit(song["title"], 36)
-    artist = _fit(song["artist"] or "Unknown Artist", 22)
-    return f"{marker} {title}  {artist}  {format_duration(song['duration'])}"
+    title = _fit(song["title"], SONG_TITLE_WIDTH)
+    uploader = _fit(song["artist"] or UNKNOWN_UPLOADER, SONG_UPLOADER_WIDTH)
+    return f"{marker} {title}  {uploader}  {format_duration(song['duration'])}"
 
 
 def _fit(text: str, width: int) -> str:

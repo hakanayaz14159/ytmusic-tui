@@ -11,6 +11,7 @@ from ytmusic_cli.consts import COMPACT_HEIGHT_ROWS
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import PlaybackState, PlaybackStatus, Song
 from ytmusic_cli.tui.format import (
+    UNKNOWN_UPLOADER,
     format_duration,
     format_progress_bar,
     format_volume_gauge,
@@ -97,8 +98,8 @@ class NowPlaying(Vertical):
             title = f"{glyph}  [No track playing]"
             detail = f"{format_volume_gauge(playback['volume'])}  {playback['volume']}%"
         else:
-            artist = song["artist"] or "Unknown Artist"
-            title = f"{glyph}  {song['title']}  —  {artist}"
+            uploader = song["artist"] or UNKNOWN_UPLOADER
+            title = f"{glyph}  {song['title']}  —  {uploader}"
             progress = format_progress_bar(playback["position"], playback["duration"])
             clock = (
                 f"{format_duration(playback['position'])} / "

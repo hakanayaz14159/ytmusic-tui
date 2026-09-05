@@ -137,10 +137,11 @@ class Youtube:
             return None
 
         duration = entry.get("duration")
+        # Flat search yields channel/uploader, not a music artist.
         return Song(
             video_id=str(raw_id),
             title=entry.get("title", "Unknown Title"),
-            artist=entry.get("uploader", entry.get("channel", "Unknown Artist")),
+            artist=entry.get("uploader", entry.get("channel", "Unknown Uploader")),
             album=entry.get("album") or entry.get("playlist_title"),
             duration=int(duration) if duration is not None else 0,
         )
