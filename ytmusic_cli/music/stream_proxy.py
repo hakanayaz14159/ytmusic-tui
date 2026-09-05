@@ -80,6 +80,12 @@ def _handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
                         self.wfile.write(chunk)
                         self.wfile.flush()
             except HTTPError as err:
+                logger.error(
+                    "proxy upstream http %s url=%s range=%s",
+                    err.code,
+                    redact_url(stream["url"]),
+                    self.headers.get("Range"),
+                )
                 self.send_response(err.code)
                 self.end_headers()
             except (URLError, OSError, TimeoutError):

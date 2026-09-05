@@ -208,3 +208,25 @@ def test_search_uses_extract_flat_in_playlist(
 
     called_opts = patched.call_args[0][0]
     assert called_opts["extract_flat"] == "in_playlist"
+
+
+def test_get_stream_uses_android_player_client(
+    youtube_no_init: Youtube,
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+    mock_ydl.__exit__ = MagicMock(return_value=False)
+    mock_ydl.extract_info.return_value = {
+        "url": "https://googlevideo.com/videoplayback?itag=18",
+        "http_headers": {"User-Agent": "test-agent"},
+    }
+    patched = mocker.patch(
+        "ytmusic_cli.music.youtube.YoutubeDL",
+        return_value=mock_ydl,
+    )
+
+    youtube_no_init.get_stream("dQw4w9WgXcQ")
+
+    called_opts = patched.call_args[0][0]
+    assert called_opts["extractor_args"]["youtube"]["player_client"] == ["android"]

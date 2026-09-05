@@ -36,6 +36,9 @@ class Youtube:
             "no_warnings": True,
             "socket_timeout": 15,
             "format": _AUDIO_FORMAT,
+            "extractor_args": {
+                "youtube": {"player_client": ["android"]},
+            },
         }
         if options:
             self._base_options.update(options)

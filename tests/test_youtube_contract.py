@@ -24,7 +24,7 @@ def test_get_stream_serves_audio_bytes_with_returned_headers(
     with urlopen(request, timeout=15) as response:
         assert response.status == 206
         content_type = response.headers.get_content_type()
-        assert content_type.startswith("audio/")
+        assert content_type.startswith(("audio/", "video/"))
 
 
 @pytest.mark.network
