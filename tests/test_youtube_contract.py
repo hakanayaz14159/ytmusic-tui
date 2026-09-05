@@ -28,6 +28,16 @@ def test_get_stream_serves_audio_bytes_with_returned_headers(
 
 
 @pytest.mark.network
+def test_suggest_returns_query_strings(
+    requires_network: None,
+) -> None:
+    suggestions = Youtube().suggest("beatles", max_results=5)
+    assert 1 <= len(suggestions) <= 5
+    for suggestion in suggestions:
+        assert suggestion.strip()
+
+
+@pytest.mark.network
 def test_search_returns_requested_number_of_populated_songs(
     requires_network: None,
 ) -> None:

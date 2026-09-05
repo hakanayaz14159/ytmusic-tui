@@ -68,6 +68,9 @@ def test_mock_youtube_fixture(mock_youtube: MagicMock) -> None:
     stream = mock_youtube.get_stream("sample1")
     assert stream["url"].startswith("https://")
 
+    suggestions = mock_youtube.suggest("lo", max_results=8)
+    assert suggestions == ["lofi hip hop", "lofi girl"]
+
 
 def test_mock_player_fixture(mock_player: MagicMock) -> None:
     """Verify mock_player fixture tracks playback state."""

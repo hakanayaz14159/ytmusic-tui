@@ -26,7 +26,7 @@ MODES: tuple[str, ...] = (
 
 HINTS: dict[str, str] = {
     "search": (
-        "enter play   a queue   A playlist   j/k move   space pause   / search   ? help"
+        "enter play   down/up complete   a queue   A playlist   j/k move   / search   ? help"
     ),
     "queue": "enter play   d remove   > next   space pause   ? help",
     "playlists": "enter play   n new   d delete   A add   ? help",

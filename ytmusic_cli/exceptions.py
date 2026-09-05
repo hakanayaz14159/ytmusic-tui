@@ -23,3 +23,7 @@ class DatabaseError(YTMusicError):
 
 class ValidationError(YTMusicError):
     """Raised when user input or domain validation fails."""
+
+
+class SuggestionError(YTMusicError):
+    """Raised when query suggestion lookup fails."""

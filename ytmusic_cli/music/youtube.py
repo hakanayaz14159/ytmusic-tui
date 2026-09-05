@@ -1,11 +1,17 @@
+import json
 import logging
 import re
+from collections.abc import Sequence
 from typing import Any
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from yt_dlp import YoutubeDL
 
+from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT
 from ytmusic_cli.exceptions import (
     StreamExtractionError,
+    SuggestionError,
     TrackNotFoundError,
     YTMusicError,
 )
@@ -16,6 +22,27 @@ from .types import AudioStream, Song
 logger = logging.getLogger(__name__)
 
 _AUDIO_FORMAT = "bestaudio[protocol^=http]/bestaudio/best"
+_SUGGEST_ENDPOINT = "https://suggestqueries.google.com/complete/search"
+_SUGGEST_TIMEOUT_SECONDS = 5
+_SUGGEST_USER_AGENT = "Mozilla/5.0"
+
+
+def _parse_suggest_payload(payload: object, max_results: int) -> list[str]:
+    if not isinstance(payload, list):
+        raise SuggestionError("Unexpected suggest payload")
+    try:
+        raw = payload[1]
+    except IndexError:
+        raise SuggestionError("Unexpected suggest payload") from None
+    if isinstance(raw, str | bytes) or not isinstance(raw, Sequence):
+        raise SuggestionError("Unexpected suggest payload")
+    suggestions: list[str] = []
+    for item in raw:
+        if isinstance(item, str):
+            suggestions.append(item)
+            if len(suggestions) >= max_results:
+                break
+    return suggestions
 
 
 def _log_stream(video_id: str, stream: AudioStream) -> None:
@@ -28,7 +55,7 @@ def _log_stream(video_id: str, stream: AudioStream) -> None:
 
 
 class Youtube:
-    """yt-dlp adapter for search and audio stream resolution."""
+    """YouTube adapter for search, query suggestions, and stream resolution."""
 
     def __init__(self, options: dict[str, Any] | None = None) -> None:
         self._base_options: dict[str, Any] = {
@@ -44,6 +71,7 @@ class Youtube:
             self._base_options.update(options)
 
         self._search_cache: dict[str, list[Song]] = {}
+        self._suggest_cache: dict[str, list[str]] = {}
 
     def _options(self, **overrides: Any) -> dict[str, Any]:
         merged = dict(self._base_options)
@@ -85,6 +113,36 @@ class Youtube:
             raise StreamExtractionError(
                 f"Search failed for query '{query}': {e!s}"
             ) from e
+
+    def suggest(
+        self, query: str, max_results: int = DEFAULT_SUGGEST_LIMIT
+    ) -> list[str]:
+        cache_key = f"{query}:{max_results}"
+        if cache_key in self._suggest_cache:
+            logger.debug("suggest cache hit query=%r", query)
+            return self._suggest_cache[cache_key]
+
+        try:
+            params = urlencode({"client": "firefox", "ds": "yt", "q": query})
+            request = Request(
+                f"{_SUGGEST_ENDPOINT}?{params}",
+                headers={"User-Agent": _SUGGEST_USER_AGENT},
+            )
+            with urlopen(request, timeout=_SUGGEST_TIMEOUT_SECONDS) as response:
+                raw = response.read()
+            payload: object = json.loads(raw.decode())
+            suggestions = _parse_suggest_payload(payload, max_results)
+            self._suggest_cache[cache_key] = suggestions
+            logger.info("suggest query=%r results=%s", query, len(suggestions))
+            return suggestions
+        except YTMusicError:
+            logger.exception("suggest failed query=%r", query)
+            raise
+        except Exception as err:
+            logger.exception("suggest failed query=%r", query)
+            raise SuggestionError(
+                f"Suggest failed for query '{query}': {err!s}"
+            ) from err
 
     def get_stream(self, video_id: str) -> AudioStream:
         try:

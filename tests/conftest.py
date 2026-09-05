@@ -95,6 +95,7 @@ def mock_youtube(mocker: MockerFixture) -> MagicMock:
             },
         }
     )
+    mock.suggest = mocker.MagicMock(return_value=["lofi hip hop", "lofi girl"])
     return mock
 
 

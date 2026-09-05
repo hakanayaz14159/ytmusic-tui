@@ -4,6 +4,7 @@ from ytmusic_cli.exceptions import (
     DatabaseError,
     PlaybackError,
     StreamExtractionError,
+    SuggestionError,
     TrackNotFoundError,
     ValidationError,
     YTMusicError,
@@ -16,6 +17,7 @@ def test_all_domain_errors_are_subclasses_of_ytmusic_error() -> None:
     assert issubclass(TrackNotFoundError, YTMusicError)
     assert issubclass(DatabaseError, YTMusicError)
     assert issubclass(ValidationError, YTMusicError)
+    assert issubclass(SuggestionError, YTMusicError)
 
 
 def test_ytmusic_error_is_exception_subclass() -> None:

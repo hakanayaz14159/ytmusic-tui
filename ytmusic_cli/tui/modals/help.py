@@ -14,6 +14,7 @@ YTMusic — keyboard
 1-5          Switch mode
 Tab          Next mode
 /            Search and focus query
+Down Up      Complete suggestion
 Space        Play / pause
 +  -         Volume
 >  <         Next / previous in queue

@@ -2,6 +2,7 @@
 
 from typing import Protocol, runtime_checkable
 
+from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT
 from ytmusic_cli.music.types import AudioStream, Playlist, Song, User, UserSettings
 
 
@@ -33,6 +34,10 @@ class MusicSourceProtocol(Protocol):
     def search(self, query: str, max_results: int = 10) -> list[Song]: ...
 
     def get_stream(self, video_id: str) -> AudioStream: ...
+
+    def suggest(
+        self, query: str, max_results: int = DEFAULT_SUGGEST_LIMIT
+    ) -> list[str]: ...
 
 
 @runtime_checkable

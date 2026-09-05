@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ytmusic_cli.consts import PLAYBACK_STALL_TICKS
+from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT, PLAYBACK_STALL_TICKS
 from ytmusic_cli.exceptions import (
     PlaybackError,
     StreamExtractionError,
@@ -52,6 +52,43 @@ def test_search_service_blank_query_raises_validation_error(
     with pytest.raises(ValidationError, match="empty"):
         service.search("   ")
     mock_youtube.search.assert_not_called()
+
+
+def test_search_service_suggest_delegates_to_source(mock_youtube: MagicMock) -> None:
+    mock_youtube.suggest.return_value = ["beatles", "beatles yesterday"]
+    service = SearchService(mock_youtube)
+
+    results = service.suggest("beat", max_results=5)
+
+    mock_youtube.suggest.assert_called_once_with("beat", max_results=5)
+    assert results == ["beatles", "beatles yesterday"]
+
+
+def test_search_service_suggest_strips_query_before_delegate(
+    mock_youtube: MagicMock,
+) -> None:
+    mock_youtube.suggest.return_value = ["lofi hip hop"]
+    service = SearchService(mock_youtube)
+
+    results = service.suggest("  lofi  ")
+
+    mock_youtube.suggest.assert_called_once_with(
+        "lofi", max_results=DEFAULT_SUGGEST_LIMIT
+    )
+    assert results == ["lofi hip hop"]
+
+
+@pytest.mark.parametrize("query", ["", " ", "a", " a "])
+def test_search_service_suggest_short_query_skips_adapter(
+    mock_youtube: MagicMock,
+    query: str,
+) -> None:
+    service = SearchService(mock_youtube)
+
+    results = service.suggest(query)
+
+    assert results == []
+    mock_youtube.suggest.assert_not_called()
 
 
 def test_playback_service_play_song_updates_state(

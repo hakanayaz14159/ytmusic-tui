@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT
 from ytmusic_cli.music.ports import AudioPlayerProtocol, MusicSourceProtocol
 from ytmusic_cli.music.types import AudioStream
 
@@ -76,5 +77,10 @@ def test_complete_dummy_source_satisfies_protocol() -> None:
 
         def get_stream(self, video_id: str) -> AudioStream:
             return {"url": "https://stream.example.com/audio.m4a", "http_headers": {}}
+
+        def suggest(
+            self, query: str, max_results: int = DEFAULT_SUGGEST_LIMIT
+        ) -> list[str]:
+            return []
 
     assert isinstance(DummySource(), MusicSourceProtocol)

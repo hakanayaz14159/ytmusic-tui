@@ -18,6 +18,7 @@ from ytmusic_cli.tui.widgets.now_playing import NowPlaying
 def mock_search_service() -> MagicMock:
     service = MagicMock()
     service.search = MagicMock(return_value=[])
+    service.suggest = MagicMock(return_value=[])
     return service
 
 

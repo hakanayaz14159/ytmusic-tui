@@ -65,7 +65,8 @@ The application follows an inward-pointing **Hexagonal (Ports & Adapters)** and 
    - Adapters must conform strictly to these contracts:
      ```python
      from typing import Protocol, runtime_checkable
-     from ytmusic_cli.music.types import Song
+     from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT
+     from ytmusic_cli.music.types import AudioStream, Song
 
      @runtime_checkable
      class AudioPlayerProtocol(Protocol):
@@ -79,7 +80,10 @@ The application follows an inward-pointing **Hexagonal (Ports & Adapters)** and 
      @runtime_checkable
      class MusicSourceProtocol(Protocol):
          def search(self, query: str, max_results: int = 10) -> list[Song]: ...
-         def get_stream_url(self, video_id: str) -> str: ...
+         def get_stream(self, video_id: str) -> AudioStream: ...
+         def suggest(
+             self, query: str, max_results: int = DEFAULT_SUGGEST_LIMIT
+         ) -> list[str]: ...
      ```
 3. **Unidirectional Reactive State Flow**:
    - `AppState` (singleton) contains reactive `AtomicData[T]` observables (`current_song`, `current_user`, `current_playlist`).

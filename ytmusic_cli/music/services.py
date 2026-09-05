@@ -4,11 +4,13 @@ import logging
 
 from ytmusic_cli.consts import (
     DEFAULT_SEARCH_LIMIT,
+    DEFAULT_SUGGEST_LIMIT,
     DEFAULT_USERNAME,
     DEFAULT_VOLUME,
     MAX_SEARCH_LIMIT,
     MAX_VOLUME,
     MIN_SEARCH_LIMIT,
+    MIN_SUGGEST_CHARS,
     PLAYBACK_STALL_TICKS,
 )
 from ytmusic_cli.exceptions import ValidationError
@@ -47,6 +49,14 @@ class SearchService:
             logger.warning("search rejected empty query")
             raise ValidationError("Search query must not be empty")
         return self._source.search(query, max_results=max_results)
+
+    def suggest(
+        self, query: str, max_results: int = DEFAULT_SUGGEST_LIMIT
+    ) -> list[str]:
+        cleaned = query.strip()
+        if len(cleaned) < MIN_SUGGEST_CHARS:
+            return []
+        return self._source.suggest(cleaned, max_results=max_results)
 
 
 class PlaybackService:

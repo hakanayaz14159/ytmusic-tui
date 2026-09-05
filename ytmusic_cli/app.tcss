@@ -134,6 +134,19 @@ SearchMode #search_input:focus {
     border: tall $accent;
 }
 
+SearchMode #suggestion_list {
+    height: auto;
+    max-height: 8;
+    margin: 0 1;
+    background: $panel;
+    border: solid $border;
+}
+
+SearchMode #suggestion_list > .option-list--option-highlighted {
+    background: $primary;
+    color: $background;
+}
+
 SearchMode #search_status {
     height: 1;
     color: $text-muted;
