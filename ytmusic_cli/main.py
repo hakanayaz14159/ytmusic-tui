@@ -1,5 +1,6 @@
 """Main entry point for YTMusic CLI application."""
 
+import logging
 import sys
 from typing import Any, ClassVar
 
@@ -34,6 +35,9 @@ from ytmusic_cli.tui.modals.add_to_playlist import AddToPlaylistModal
 from ytmusic_cli.tui.modals.help import HelpModal
 from ytmusic_cli.tui.shell import AppShell
 from ytmusic_cli.tui.widgets.song_table import SongTable
+from ytmusic_cli.utils.log import configure_logging
+
+logger = logging.getLogger(__name__)
 
 
 class YTMusicApp(App[None]):
@@ -130,6 +134,7 @@ class YTMusicApp(App[None]):
         try:
             self.playback_service.toggle()
         except YTMusicError as err:
+            logger.exception("toggle failed")
             self.notify(f"Playback failed: {err}", severity="error")
 
     def action_volume_up(self) -> None:
@@ -193,9 +198,15 @@ class YTMusicApp(App[None]):
 
     @work(thread=True, exclusive=True, group="playback")
     def play_song(self, song: Song) -> None:
+        logger.info(
+            "play requested video_id=%s title=%s",
+            song["video_id"],
+            song["title"],
+        )
         try:
             stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
+            logger.exception("play resolve failed video_id=%s", song["video_id"])
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
@@ -206,6 +217,11 @@ class YTMusicApp(App[None]):
 
     @work(thread=True, exclusive=True, group="playback")
     def append_song(self, song: Song) -> None:
+        logger.info(
+            "append requested video_id=%s title=%s",
+            song["video_id"],
+            song["title"],
+        )
         status = AppState().playback_state.get()["status"]
         self.playback_service.enqueue(song)
         if status != PlaybackStatus.STOPPED:
@@ -218,6 +234,7 @@ class YTMusicApp(App[None]):
         try:
             stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
+            logger.exception("queue resolve failed video_id=%s", song["video_id"])
             self.call_from_thread(
                 self.notify,
                 f"Queue failed: {err}",
@@ -228,10 +245,12 @@ class YTMusicApp(App[None]):
 
     @work(thread=True, exclusive=True, group="playback")
     def play_playlist(self, songs: list[Song], start_index: int) -> None:
+        logger.info("playlist play count=%s start_index=%s", len(songs), start_index)
         try:
             song = self.playback_service.set_queue(songs, start_index)
             stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
+            logger.exception("playlist play failed")
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
@@ -244,6 +263,7 @@ class YTMusicApp(App[None]):
         try:
             song = self.playback_service.remove_from_queue(index)
         except YTMusicError as err:
+            logger.exception("queue remove failed index=%s", index)
             self.notify(str(err), severity="error")
             return
         if song is not None:
@@ -266,6 +286,7 @@ class YTMusicApp(App[None]):
             try:
                 self.playlist_service.add_song(playlist_id, song)
             except YTMusicError as err:
+                logger.exception("playlist add failed id=%s", playlist_id)
                 self.notify(str(err), severity="error")
                 return
             self.notify("Added to playlist", severity="information")
@@ -276,15 +297,23 @@ class YTMusicApp(App[None]):
         try:
             self.playback_service.start_stream(song, stream)
         except YTMusicError as err:
+            logger.exception("start_stream failed video_id=%s", song["video_id"])
             self.notify(f"Playback failed: {err}", severity="error")
             return
+        logger.info(
+            "playback started video_id=%s title=%s",
+            song["video_id"],
+            song["title"],
+        )
         self.notify(f"Playing: {song['title']}", severity="information")
 
     def _on_playback_tick(self) -> None:
         tick = self.playback_service.sync_playback()
         if tick.action == PlaybackTickAction.FAILED:
+            logger.error("playback tick failed message=%s", tick.message)
             self.notify(tick.message or "Playback failed", severity="error")
         elif tick.action == PlaybackTickAction.ENDED:
+            logger.info("playback tick ended")
             self._play_next()
 
     @work(thread=True, exclusive=True, group="playback")
@@ -292,9 +321,11 @@ class YTMusicApp(App[None]):
         song = AppState().current_song.get()
         if song is None:
             return
+        logger.info("replay requested video_id=%s", song["video_id"])
         try:
             stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
+            logger.exception("replay resolve failed video_id=%s", song["video_id"])
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
@@ -305,12 +336,14 @@ class YTMusicApp(App[None]):
 
     @work(thread=True, exclusive=True, group="playback")
     def _play_next(self) -> None:
+        logger.info("play next requested")
         try:
             song = self.playback_service.advance_to_next()
             if song is None:
                 return
             stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
+            logger.exception("play next failed")
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
@@ -321,12 +354,14 @@ class YTMusicApp(App[None]):
 
     @work(thread=True, exclusive=True, group="playback")
     def _play_previous(self) -> None:
+        logger.info("play previous requested")
         try:
             song = self.playback_service.advance_to_previous()
             if song is None:
                 return
             stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
+            logger.exception("play previous failed")
             self.call_from_thread(
                 self.notify,
                 f"Playback failed: {err}",
@@ -369,6 +404,10 @@ def main() -> None:
     """YTMusic CLI — a terminal music player for YouTube audio."""
 
     try:
+        log_path = configure_logging()
+        if log_path is not None:
+            logger.info("logging to %s", log_path)
+        logger.info("starting ytmusic-cli")
         bootstrap()
         app = build_production_app()
         app.run()
@@ -376,6 +415,7 @@ def main() -> None:
         click.echo("\nGoodbye!")
         sys.exit(0)
     except Exception as e:
+        logger.exception("fatal error")
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 

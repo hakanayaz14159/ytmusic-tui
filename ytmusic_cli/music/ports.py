@@ -25,6 +25,8 @@ class AudioPlayerProtocol(Protocol):
 
     def has_failed(self) -> bool: ...
 
+    def engine_state(self) -> str: ...
+
 
 @runtime_checkable
 class MusicSourceProtocol(Protocol):

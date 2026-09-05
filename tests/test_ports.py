@@ -63,6 +63,9 @@ def test_complete_dummy_player_satisfies_protocol() -> None:
         def has_failed(self) -> bool:
             return False
 
+        def engine_state(self) -> str:
+            return "Stopped"
+
     assert isinstance(DummyPlayer(), AudioPlayerProtocol)
 
 

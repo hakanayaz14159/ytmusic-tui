@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any
 
@@ -8,10 +9,22 @@ from ytmusic_cli.exceptions import (
     TrackNotFoundError,
     YTMusicError,
 )
+from ytmusic_cli.utils.log import redact_headers, redact_url
 
 from .types import AudioStream, Song
 
+logger = logging.getLogger(__name__)
+
 _AUDIO_FORMAT = "bestaudio[protocol^=http]/bestaudio/best"
+
+
+def _log_stream(video_id: str, stream: AudioStream) -> None:
+    logger.info(
+        "get_stream video_id=%s url=%s headers=%s",
+        video_id,
+        redact_url(stream["url"]),
+        list(redact_headers(stream["http_headers"])),
+    )
 
 
 class Youtube:
@@ -37,6 +50,7 @@ class Youtube:
     def search(self, query: str, max_results: int = 10) -> list[Song]:
         cache_key = f"{query}:{max_results}"
         if cache_key in self._search_cache:
+            logger.debug("search cache hit query=%r", query)
             return self._search_cache[cache_key]
 
         try:
@@ -46,6 +60,7 @@ class Youtube:
                 search_results = ydl.extract_info(search_query, download=False)
 
                 if not search_results or "entries" not in search_results:
+                    logger.info("search query=%r results=0", query)
                     return []
 
                 songs = []
@@ -56,11 +71,14 @@ class Youtube:
                             songs.append(song)
 
                 self._search_cache[cache_key] = songs
+                logger.info("search query=%r results=%s", query, len(songs))
                 return songs
 
         except YTMusicError:
+            logger.exception("search failed query=%r", query)
             raise
         except Exception as e:
+            logger.exception("search failed query=%r", query)
             raise StreamExtractionError(
                 f"Search failed for query '{query}': {e!s}"
             ) from e
@@ -80,26 +98,32 @@ class Youtube:
                 top_headers: dict[str, str] = dict(info.get("http_headers") or {})
 
                 if "url" in info:
-                    return AudioStream(
+                    stream = AudioStream(
                         url=info["url"],
                         http_headers=top_headers,
                     )
+                    _log_stream(video_id, stream)
+                    return stream
                 elif info.get("formats"):
                     for fmt in info["formats"]:
                         if fmt.get("acodec") != "none" and fmt.get("url"):
                             fmt_headers: dict[str, str] = dict(
                                 fmt.get("http_headers") or top_headers
                             )
-                            return AudioStream(
+                            stream = AudioStream(
                                 url=fmt["url"],
                                 http_headers=fmt_headers,
                             )
+                            _log_stream(video_id, stream)
+                            return stream
 
                 raise TrackNotFoundError("No audio stream URL found")
 
         except YTMusicError:
+            logger.exception("get_stream failed video_id=%s", video_id)
             raise
         except Exception as e:
+            logger.exception("get_stream failed video_id=%s", video_id)
             raise StreamExtractionError(
                 f"Failed to get stream URL for video {video_id}: {e!s}"
             ) from e

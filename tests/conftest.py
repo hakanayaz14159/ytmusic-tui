@@ -15,6 +15,7 @@ from ytmusic_cli.db.user import User
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import AudioStream
 from ytmusic_cli.music.types import Song as SongType
+from ytmusic_cli.utils.log import reset_logging
 
 MODELS = [User, Song, Playlist, Playlist.songs.get_through_model()]
 
@@ -32,6 +33,13 @@ def network_available() -> bool:
 def requires_network(network_available: bool) -> None:
     if not network_available:
         pytest.skip("no route to www.youtube.com:443 - live contract test skipped")
+
+
+@pytest.fixture(autouse=True)
+def isolate_logging() -> Generator[None, None, None]:
+    reset_logging()
+    yield
+    reset_logging()
 
 
 @pytest.fixture(autouse=True)
@@ -139,6 +147,7 @@ def mock_player(mocker: MockerFixture) -> MagicMock:
     player.get_position = mocker.MagicMock(return_value=0.0)
     player.has_ended = mocker.MagicMock(return_value=False)
     player.has_failed = mocker.MagicMock(return_value=False)
+    player.engine_state = mocker.MagicMock(return_value="Stopped")
     player.state = state
 
     return player

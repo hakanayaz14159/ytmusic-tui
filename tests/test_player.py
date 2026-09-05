@@ -1,5 +1,6 @@
 """Tests for VLCPlayer audio adapter (mocked VLC, no hardware)."""
 
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -10,6 +11,7 @@ from ytmusic_cli.exceptions import PlaybackError
 from ytmusic_cli.music.player import VLCPlayer
 from ytmusic_cli.music.ports import AudioPlayerProtocol
 from ytmusic_cli.music.types import AudioStream
+from ytmusic_cli.utils.log import configure_logging, reset_logging
 
 
 @pytest.fixture
@@ -31,12 +33,42 @@ def test_vlc_player_implements_audio_player_protocol(mock_vlc: MagicMock) -> Non
     assert mock_vlc is player._player
 
 
-def test_init_passes_no_video_option(mocker: MockerFixture) -> None:
+def test_init_passes_no_video_and_quiet_when_logging_disabled(
+    mocker: MockerFixture,
+) -> None:
     mock_instance_cls = mocker.patch("ytmusic_cli.music.player.vlc.Instance")
     VLCPlayer()
     mock_instance_cls.assert_called_once()
     args = mock_instance_cls.call_args[0]
     assert "--no-video" in args
+    assert "--quiet" in args
+    assert "--file-logging" not in args
+
+
+def test_init_uses_verbose_vlc_logfile_when_logging_enabled(
+    mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("YTMUSIC_LOG", "1")
+    monkeypatch.setenv("YTMUSIC_LOG_FILE", str(tmp_path / "ytmusic.log"))
+    configure_logging()
+    mock_instance_cls = mocker.patch("ytmusic_cli.music.player.vlc.Instance")
+    try:
+        VLCPlayer()
+    finally:
+        reset_logging()
+    args = list(mock_instance_cls.call_args[0])
+    assert "--no-video" in args
+    assert "--quiet" not in args
+    assert "--verbose=2" in args
+    assert "--file-logging" in args
+    assert any(
+        isinstance(arg, str)
+        and arg.startswith("--logfile=")
+        and arg.endswith(".vlc.log")
+        for arg in args
+    )
 
 
 def test_play_sets_media_configures_headers_and_plays(mock_vlc: MagicMock) -> None:
@@ -161,6 +193,14 @@ def test_has_ended_false_when_playing(mock_vlc: MagicMock) -> None:
     mock_vlc.get_state.return_value = vlc.State.Playing
     player = VLCPlayer()
     assert player.has_ended() is False
+
+
+def test_engine_state_returns_vlc_state_name(mock_vlc: MagicMock) -> None:
+    mock_vlc.get_state.return_value = vlc.State.Ended
+    player = VLCPlayer()
+    assert player.engine_state() == "Ended"
+    mock_vlc.get_state.return_value = vlc.State.Opening
+    assert player.engine_state() == "Opening"
 
 
 def test_has_failed_true_only_for_error_state(mock_vlc: MagicMock) -> None:
