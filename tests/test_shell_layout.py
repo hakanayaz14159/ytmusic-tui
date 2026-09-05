@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from textual.widgets import Static
 
+from tests.conftest import make_test_app
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.services import PlaybackService, SearchService
 from ytmusic_cli.music.state import AppState
@@ -18,7 +19,7 @@ def _make_app(
     mock_player: MagicMock,
 ) -> YTMusicApp:
     state = AppState()
-    return YTMusicApp(
+    return make_test_app(
         search_service=SearchService(source=mock_youtube),
         playback_service=PlaybackService(
             player=mock_player,

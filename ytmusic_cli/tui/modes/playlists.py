@@ -1,7 +1,8 @@
 """Playlists mode: local lists for the active profile."""
 
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import ClassVar
 
+from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Horizontal, Vertical
@@ -11,13 +12,11 @@ from textual.widgets.option_list import Option
 from ytmusic_cli.exceptions import YTMusicError
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import Playlist
+from ytmusic_cli.tui.app import ytmusic_app
 from ytmusic_cli.tui.modals.confirm import ConfirmModal
 from ytmusic_cli.tui.modals.prompt import PromptModal
 from ytmusic_cli.tui.widgets.select_list import SelectList
 from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable
-
-if TYPE_CHECKING:
-    from ytmusic_cli.main import YTMusicApp
 
 
 class PlaylistsMode(Horizontal):
@@ -47,14 +46,18 @@ class PlaylistsMode(Horizontal):
             )
         yield SongTable(id="playlist_tracks", allow_delete=True, allow_append=True)
 
+    @work(thread=True, exclusive=True, group="playlists")
     def reload(self) -> None:
-        app = cast("YTMusicApp", self.app)
+        app = ytmusic_app(self.app)
         user = AppState().current_user.get()
-        if app.playlist_service is None or user is None:
-            self._playlists = []
-            self._render_lists()
+        if user is None:
+            app.call_from_thread(self._apply_playlists, [])
             return
-        self._playlists = app.playlist_service.list_playlists(user["id"])
+        playlists = app.playlist_service.list_playlists(user["id"])
+        app.call_from_thread(self._apply_playlists, playlists)
+
+    def _apply_playlists(self, playlists: list[Playlist]) -> None:
+        self._playlists = playlists
         self._render_lists()
 
     def activate(self) -> None:
@@ -93,7 +96,7 @@ class PlaylistsMode(Horizontal):
         playlist = self._current_playlist()
         if playlist is None:
             return
-        app = cast("YTMusicApp", self.app)
+        app = ytmusic_app(self.app)
         app.load_playlist_into_queue(playlist["id"], play=True, start_index=0)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
@@ -104,7 +107,7 @@ class PlaylistsMode(Horizontal):
         index = table.selected_index()
         if playlist is None or index is None:
             return
-        app = cast("YTMusicApp", self.app)
+        app = ytmusic_app(self.app)
         app.load_playlist_into_queue(playlist["id"], play=True, start_index=index)
 
     def on_song_table_delete_requested(
@@ -113,47 +116,66 @@ class PlaylistsMode(Horizontal):
     ) -> None:
         message.stop()
         playlist = self._current_playlist()
-        app = cast("YTMusicApp", self.app)
-        if playlist is None or app.playlist_service is None:
+        if playlist is None:
             return
-        try:
-            app.playlist_service.remove_song(playlist["id"], message.song["video_id"])
-        except YTMusicError as err:
-            self.notify(str(err), severity="error")
-            return
-        self.reload()
+        self._remove_playlist_song(playlist["id"], message.song["video_id"])
 
     def _on_new_name(self, name: str | None) -> None:
         if name is None:
             return
-        app = cast("YTMusicApp", self.app)
         user = AppState().current_user.get()
-        if app.playlist_service is None or user is None:
+        if user is None:
             self.notify("Create a profile to use playlists", severity="warning")
             return
-        try:
-            created = app.playlist_service.create_playlist(user["id"], name)
-        except YTMusicError as err:
-            self.notify(str(err), severity="error")
-            return
-        self._selected_id = created["id"]
-        self.reload()
-        self.notify(f"Created {created['name']}", severity="information")
+        self._create_playlist(user["id"], name)
 
     def _on_confirm_delete_playlist(self, confirmed: bool | None) -> None:
         if not confirmed:
             return
         playlist = self._current_playlist()
-        app = cast("YTMusicApp", self.app)
-        if playlist is None or app.playlist_service is None:
+        if playlist is None:
             return
+        self._delete_playlist(playlist)
+
+    @work(thread=True, exclusive=True, group="playlists")
+    def _create_playlist(self, user_id: int, name: str) -> None:
+        app = ytmusic_app(self.app)
+        try:
+            created = app.playlist_service.create_playlist(user_id, name)
+        except YTMusicError as err:
+            app.call_from_thread(self.notify, str(err), severity="error")
+            return
+        app.call_from_thread(self._on_playlist_created, created)
+
+    def _on_playlist_created(self, created: Playlist) -> None:
+        self._selected_id = created["id"]
+        self.reload()
+        self.notify(f"Created {created['name']}", severity="information")
+
+    @work(thread=True, exclusive=True, group="playlists")
+    def _delete_playlist(self, playlist: Playlist) -> None:
+        app = ytmusic_app(self.app)
         try:
             app.playlist_service.delete_playlist(playlist["id"])
         except YTMusicError as err:
-            self.notify(str(err), severity="error")
+            app.call_from_thread(self.notify, str(err), severity="error")
             return
+        app.call_from_thread(self._on_playlist_deleted, playlist)
+
+    def _on_playlist_deleted(self, playlist: Playlist) -> None:
         self._selected_id = None
         self.reload()
+        self.notify(f"Deleted {playlist['name']}", severity="information")
+
+    @work(thread=True, exclusive=True, group="playlists")
+    def _remove_playlist_song(self, playlist_id: int, video_id: str) -> None:
+        app = ytmusic_app(self.app)
+        try:
+            app.playlist_service.remove_song(playlist_id, video_id)
+        except YTMusicError as err:
+            app.call_from_thread(self.notify, str(err), severity="error")
+            return
+        app.call_from_thread(self.reload)
 
     def _current_playlist(self) -> Playlist | None:
         for playlist in self._playlists:

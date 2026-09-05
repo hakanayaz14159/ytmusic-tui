@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests.conftest import make_test_app
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.tui.modals.help import HelpModal
 
@@ -13,7 +14,7 @@ def _app() -> YTMusicApp:
     search.suggest = MagicMock(return_value=[])
     playback = MagicMock()
     playback.sync_playback = MagicMock()
-    return YTMusicApp(search_service=search, playback_service=playback)
+    return make_test_app(search_service=search, playback_service=playback)
 
 
 @pytest.mark.asyncio
@@ -47,3 +48,6 @@ async def test_help_lists_suggestion_keys() -> None:
         lowered = help_text.lower()
         assert "down" in lowered
         assert "complete" in lowered
+        assert "shift+tab" in lowered
+        assert "=" in help_text
+        assert "←" in help_text or "h" in lowered

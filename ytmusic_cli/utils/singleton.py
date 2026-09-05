@@ -1,15 +1,16 @@
 from collections.abc import Callable
 from threading import Lock
-from typing import Any, TypeVar
+from typing import ParamSpec, TypeVar
 
+P = ParamSpec("P")
 T = TypeVar("T")
 
 
-def singleton(cls: type[T]) -> Callable[..., T]:
-    instances: dict[type[T], T] = {}
+def singleton(cls: Callable[P, T]) -> Callable[P, T]:
+    instances: dict[Callable[P, T], T] = {}
     lock = Lock()
 
-    def get_instance(*args: Any, **kwargs: Any) -> T:
+    def get_instance(*args: P.args, **kwargs: P.kwargs) -> T:
         with lock:
             if cls not in instances:
                 instances[cls] = cls(*args, **kwargs)

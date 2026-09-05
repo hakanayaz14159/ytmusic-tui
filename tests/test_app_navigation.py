@@ -6,6 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 from textual.widgets import Input
 
+from tests.conftest import make_test_app
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.types import PlaybackTick, PlaybackTickAction
 from ytmusic_cli.tui.modals.help import HelpModal
@@ -39,7 +40,7 @@ def _make_app(
     mock_search_service: MagicMock,
     mock_playback_service: MagicMock,
 ) -> YTMusicApp:
-    return YTMusicApp(
+    return make_test_app(
         search_service=mock_search_service,
         playback_service=mock_playback_service,
     )
@@ -117,6 +118,8 @@ async def test_pressing_plus_calls_volume_up(
 
     async with app.run_test() as pilot:
         await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
         await pilot.press("+")
         await pilot.pause()
         mock_playback_service.volume_up.assert_called_once()
@@ -147,9 +150,50 @@ async def test_pressing_minus_calls_volume_down(
 
     async with app.run_test() as pilot:
         await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
         await pilot.press("-")
         await pilot.pause()
         mock_playback_service.volume_down.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_volume_keys_insert_when_search_input_focused(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.query_one("#search_input", Input)
+        assert search_input.has_focus is True
+        await pilot.press("+")
+        await pilot.press("equals_sign")
+        await pilot.press("-")
+        await pilot.pause()
+
+        assert "+" in search_input.value
+        assert "=" in search_input.value
+        assert "-" in search_input.value
+        mock_playback_service.volume_up.assert_not_called()
+        mock_playback_service.volume_down.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_shift_a_inserts_when_search_input_focused(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.query_one("#search_input", Input)
+        await pilot.press("A")
+        await pilot.pause()
+
+        assert "A" in search_input.value
 
 
 @pytest.mark.asyncio

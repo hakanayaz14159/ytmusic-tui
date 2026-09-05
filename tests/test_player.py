@@ -19,9 +19,9 @@ from ytmusic_cli.utils.log import configure_logging, reset_logging
 @pytest.fixture
 def mock_vlc(mocker: MockerFixture) -> MagicMock:
     """Patch vlc.Instance and return the mock media player."""
-    mock_instance = mocker.MagicMock()
-    mock_media_player = mocker.MagicMock()
-    mock_media = mocker.MagicMock()
+    mock_media_player = MagicMock()
+    mock_instance = MagicMock()
+    mock_media = MagicMock()
     mock_media_player.play.return_value = 0
     mock_instance.media_player_new.return_value = mock_media_player
     mock_instance.media_new.return_value = mock_media

@@ -171,10 +171,27 @@ def test_convert_entry_to_song(youtube_no_init: Youtube) -> None:
     assert song["duration"] == 180
 
 
-def test_convert_entry_to_song_returns_none_without_id(
+def test_convert_entry_to_song_rejects_non_mapping(
     youtube_no_init: Youtube,
 ) -> None:
-    assert youtube_no_init._convert_entry_to_song({"title": "No ID"}) is None
+    assert youtube_no_init._convert_entry_to_song("not-an-entry") is None
+
+
+def test_get_stream_rejects_non_string_headers(
+    youtube_no_init: Youtube,
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
+    mock_ydl.__exit__ = MagicMock(return_value=False)
+    mock_ydl.extract_info.return_value = {
+        "url": "https://googlevideo.com/videoplayback?id=123",
+        "http_headers": {"User-Agent": 1},
+    }
+    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+
+    with pytest.raises(StreamExtractionError, match="Invalid stream headers"):
+        youtube_no_init.get_stream("dQw4w9WgXcQ")
 
 
 def test_convert_entry_to_song_defaults_missing_uploader_to_unknown_uploader(

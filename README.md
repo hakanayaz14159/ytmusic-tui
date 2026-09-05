@@ -83,6 +83,7 @@ uv run ytmusic-cli --help
 | `/`             | Search and focus the query field                   |
 | `1`–`5`         | Search / Queue / Playlists / Profiles / Settings   |
 | `Tab`           | Next mode                                          |
+| `Shift+Tab`     | Previous mode                                      |
 | `Space`         | Play / pause                                       |
 | `+` / `=` / `-` | Volume up / down                                   |
 | `>` / `<`       | Next / previous in queue                           |

@@ -1,21 +1,24 @@
 """Queue mode: the upcoming play list."""
 
-from collections.abc import Callable  # noqa: TC003
-from typing import TYPE_CHECKING, ClassVar, cast
+from __future__ import annotations
 
-from textual.app import ComposeResult
+from typing import TYPE_CHECKING, ClassVar
+
 from textual.binding import Binding, BindingType
 from textual.containers import Vertical
 from textual.message import Message
-from textual.widgets import Label, ListView
+from textual.widgets import Label
 
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import Playlist, Song
+from ytmusic_cli.tui.app import ytmusic_app
 from ytmusic_cli.tui.widgets.queue_list import QueueList
-from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable
 
 if TYPE_CHECKING:
-    from ytmusic_cli.main import YTMusicApp
+    from collections.abc import Callable
+
+    from textual.app import ComposeResult
+
+    from ytmusic_cli.music.types import Playlist, Song
 
 
 class QueueMode(Vertical):
@@ -68,6 +71,9 @@ class QueueMode(Vertical):
             self._unsub_working()
             self._unsub_working = None
 
+    def reload(self) -> None:
+        pass
+
     def activate(self) -> None:
         self._sync_empty()
         self._sync_working()
@@ -78,27 +84,13 @@ class QueueMode(Vertical):
         self.focus()
 
     def action_open_playlist(self) -> None:
-        cast("YTMusicApp", self.app).prompt_open_working_playlist()
+        ytmusic_app(self.app).prompt_open_working_playlist()
 
     def action_save_as_playlist(self) -> None:
-        cast("YTMusicApp", self.app).prompt_save_queue_as_playlist()
+        ytmusic_app(self.app).prompt_save_queue_as_playlist()
 
     def action_overwrite_playlist(self) -> None:
-        cast("YTMusicApp", self.app).prompt_overwrite_working_playlist()
-
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        if not isinstance(event.item, SongRow):
-            return
-        app = cast("YTMusicApp", self.app)
-        app.play_song(event.item.song)
-
-    def on_song_table_delete_requested(
-        self,
-        message: SongTable.DeleteRequested,
-    ) -> None:
-        app = cast("YTMusicApp", self.app)
-        app.remove_from_queue(message.index)
-        message.stop()
+        ytmusic_app(self.app).prompt_overwrite_working_playlist()
 
     def _on_queue(self, _queue: list[Song]) -> None:
         if self.is_mounted:

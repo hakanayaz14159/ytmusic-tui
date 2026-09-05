@@ -183,7 +183,8 @@ def test_fail_playback_logs_engine_state(
     mock_player.engine_state.return_value = "Ended"
 
     service = PlaybackService(mock_player, mock_youtube, AppState())
-    service.play_song(song)
+    stream = service.resolve_stream(song)
+    service.start_stream(song, stream)
     tick = service.sync_playback()
 
     assert tick.action == PlaybackTickAction.FAILED

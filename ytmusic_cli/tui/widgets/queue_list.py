@@ -1,12 +1,18 @@
 """Song table bound to the playback queue."""
 
-from collections.abc import Callable  # noqa: TC003
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from textual.message import Message
 
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import Song
 from ytmusic_cli.tui.widgets.song_table import SongTable
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from ytmusic_cli.music.types import Song
 
 
 class QueueList(SongTable):

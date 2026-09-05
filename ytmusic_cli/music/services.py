@@ -60,7 +60,11 @@ class SearchService:
 
 
 class PlaybackService:
-    """Orchestrates stream resolution, player control, queue, and AppState."""
+    """Orchestrates stream resolution, player control, queue, and AppState.
+
+    Workers may call ``resolve_stream`` only. All ``AppState`` writes happen on
+    the main thread via queue helpers and ``start_stream``.
+    """
 
     def __init__(
         self,
@@ -80,7 +84,6 @@ class PlaybackService:
             song["video_id"],
             song["title"],
         )
-        self._align_queue_for_play(song)
         return self._source.get_stream(song["video_id"])
 
     def start_stream(self, song: Song, stream: AudioStream) -> None:
@@ -89,6 +92,7 @@ class PlaybackService:
             song["video_id"],
             song["title"],
         )
+        self._align_queue_for_play(song)
         self._player.play(stream)
         current = self._state.playback_state.get()
         self._player.set_volume(current["volume"])
@@ -104,19 +108,9 @@ class PlaybackService:
             )
         )
 
-    def play_song(self, song: Song) -> None:
-        stream = self.resolve_stream(song)
-        self.start_stream(song, stream)
-
     def enqueue(self, song: Song) -> None:
         logger.info("enqueue video_id=%s title=%s", song["video_id"], song["title"])
         self._state.queue.set([*self._state.queue.get(), song])
-
-    def append_to_queue(self, song: Song) -> None:
-        self.enqueue(song)
-        status = self._state.playback_state.get()["status"]
-        if status == PlaybackStatus.STOPPED:
-            self.play_song(song)
 
     def load_queue(self, songs: list[Song]) -> Song:
         current = self._state.current_song.get()
@@ -143,11 +137,6 @@ class PlaybackService:
         )
         return songs[index]
 
-    def play_queue(self, songs: list[Song], start_index: int = 0) -> None:
-        song = self.set_queue(songs, start_index)
-        stream = self._source.get_stream(song["video_id"])
-        self.start_stream(song, stream)
-
     def advance_to_next(self) -> Song | None:
         queue = self._state.queue.get()
         next_index = self._state.queue_index.get() + 1
@@ -164,13 +153,6 @@ class PlaybackService:
             self._patch_playback(status=PlaybackStatus.STOPPED)
         return None
 
-    def play_next(self) -> None:
-        song = self.advance_to_next()
-        if song is None:
-            return
-        stream = self._source.get_stream(song["video_id"])
-        self.start_stream(song, stream)
-
     def advance_to_previous(self) -> Song | None:
         queue = self._state.queue.get()
         prev_index = self._state.queue_index.get() - 1
@@ -184,13 +166,6 @@ class PlaybackService:
             return queue[prev_index]
         logger.info("advance_to_previous at start")
         return None
-
-    def play_previous(self) -> None:
-        song = self.advance_to_previous()
-        if song is None:
-            return
-        stream = self._source.get_stream(song["video_id"])
-        self.start_stream(song, stream)
 
     def remove_from_queue(self, index: int) -> Song | None:
         queue = list(self._state.queue.get())
@@ -229,11 +204,6 @@ class PlaybackService:
             logger.info("toggle resume")
             self._player.pause()
             self._set_status(PlaybackStatus.PLAYING)
-        elif status == PlaybackStatus.STOPPED:
-            song = self._state.current_song.get()
-            if song is not None:
-                logger.info("toggle replay video_id=%s", song["video_id"])
-                self.play_song(song)
 
     def stop(self) -> None:
         logger.info("stop")
@@ -421,8 +391,13 @@ class AccountService:
 class PlaylistService:
     """User-scoped playlist workflows."""
 
-    def __init__(self, playlists: PlaylistRepositoryProtocol) -> None:
+    def __init__(
+        self,
+        playlists: PlaylistRepositoryProtocol,
+        state: AppState,
+    ) -> None:
         self._playlists = playlists
+        self._state = state
 
     def list_playlists(self, user_id: int) -> list[Playlist]:
         return self._playlists.list_for_user(user_id)
@@ -447,6 +422,9 @@ class PlaylistService:
             logger.warning("playlist missing id=%s", playlist_id)
             raise ValidationError("Playlist not found")
         return playlist
+
+    def adopt_working_playlist(self, playlist: Playlist) -> None:
+        self._state.current_playlist.set(playlist)
 
     def create_playlist_from_songs(
         self,

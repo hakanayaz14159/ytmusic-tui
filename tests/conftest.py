@@ -2,7 +2,7 @@
 
 import socket
 from collections.abc import Generator
-from typing import Any
+from typing import TypedDict, cast
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,12 +12,28 @@ from pytest_mock import MockerFixture
 from ytmusic_cli.db.playlist import Playlist
 from ytmusic_cli.db.song import Song
 from ytmusic_cli.db.user import User
+from ytmusic_cli.main import YTMusicApp
+from ytmusic_cli.music.services import (
+    AccountService,
+    PlaybackService,
+    PlaylistService,
+    SearchService,
+    SettingsService,
+)
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import AudioStream
 from ytmusic_cli.music.types import Song as SongType
 from ytmusic_cli.utils.log import reset_logging
 
 MODELS = [User, Song, Playlist, Playlist.songs.get_through_model()]
+
+
+class MockPlayerState(TypedDict):
+    is_playing: bool
+    current_url: str | None
+    current_stream: AudioStream | None
+    volume: int
+    position: float
 
 
 @pytest.fixture(scope="session")
@@ -43,6 +59,15 @@ def isolate_logging() -> Generator[None, None, None]:
 
 
 @pytest.fixture(autouse=True)
+def fast_suggest_debounce(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Textual Timer rejects interval 0.
+    monkeypatch.setattr(
+        "ytmusic_cli.tui.modes.search.SUGGEST_DEBOUNCE_SECONDS",
+        0.01,
+    )
+
+
+@pytest.fixture(autouse=True)
 def reset_app_state() -> Generator[None, None, None]:
     """Reset the AppState singleton before and after every test."""
     AppState().reset()
@@ -53,7 +78,7 @@ def reset_app_state() -> Generator[None, None, None]:
 @pytest.fixture
 def test_db() -> Generator[SqliteDatabase, None, None]:
     """Provide an isolated in-memory SQLite database for unit tests."""
-    db = SqliteDatabase(":memory:")
+    db = SqliteDatabase(":memory:", thread_safe=False, check_same_thread=False)
     with db.bind_ctx(MODELS):
         db.create_tables(MODELS)
         yield db
@@ -64,7 +89,7 @@ def test_db() -> Generator[SqliteDatabase, None, None]:
 @pytest.fixture
 def mock_youtube(mocker: MockerFixture) -> MagicMock:
     """Provide a mocked YouTube client for fast, deterministic, offline tests."""
-    mock = mocker.MagicMock()
+    mock = MagicMock()
 
     sample_songs: list[SongType] = [
         {
@@ -102,8 +127,8 @@ def mock_youtube(mocker: MockerFixture) -> MagicMock:
 @pytest.fixture
 def mock_player(mocker: MockerFixture) -> MagicMock:
     """Provide a mocked audio player engine (VLC abstraction) for silent tests."""
-    player = mocker.MagicMock()
-    state: dict[str, Any] = {
+    player = MagicMock()
+    state: MockPlayerState = {
         "is_playing": False,
         "current_url": None,
         "current_stream": None,
@@ -152,3 +177,41 @@ def mock_player(mocker: MockerFixture) -> MagicMock:
     player.state = state
 
     return player
+
+
+def make_test_app(
+    *,
+    search_service: SearchService | MagicMock | None = None,
+    playback_service: PlaybackService | MagicMock | None = None,
+    account_service: AccountService | MagicMock | None = None,
+    playlist_service: PlaylistService | MagicMock | None = None,
+    settings_service: SettingsService | MagicMock | None = None,
+    mock_youtube: MagicMock | None = None,
+    mock_player: MagicMock | None = None,
+) -> YTMusicApp:
+    if search_service is None:
+        if mock_youtube is not None:
+            search_service = SearchService(mock_youtube)
+        else:
+            search_service = MagicMock()
+            search_service.search = MagicMock(return_value=[])
+            search_service.suggest = MagicMock(return_value=[])
+    if playback_service is None:
+        if mock_youtube is not None and mock_player is not None:
+            playback_service = PlaybackService(mock_player, mock_youtube, AppState())
+        else:
+            playback_service = MagicMock()
+            playback_service.sync_playback = MagicMock()
+    if account_service is None:
+        account_service = MagicMock()
+    if playlist_service is None:
+        playlist_service = MagicMock()
+    if settings_service is None:
+        settings_service = MagicMock()
+    return YTMusicApp(
+        search_service=cast("SearchService", search_service),
+        playback_service=cast("PlaybackService", playback_service),
+        account_service=cast("AccountService", account_service),
+        playlist_service=cast("PlaylistService", playlist_service),
+        settings_service=cast("SettingsService", settings_service),
+    )

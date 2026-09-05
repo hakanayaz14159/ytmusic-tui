@@ -91,7 +91,12 @@ def test_search_service_suggest_short_query_skips_adapter(
     mock_youtube.suggest.assert_not_called()
 
 
-def test_playback_service_play_song_updates_state(
+def _play(service: PlaybackService, song: Song) -> None:
+    stream = service.resolve_stream(song)
+    service.start_stream(song, stream)
+
+
+def test_playback_service_resolve_and_start_updates_state(
     mock_youtube: MagicMock,
     mock_player: MagicMock,
     app_state: AppState,
@@ -107,7 +112,7 @@ def test_playback_service_play_song_updates_state(
     mock_youtube.get_stream.return_value = expected_stream
 
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
 
     mock_youtube.get_stream.assert_called_once_with(sample_song["video_id"])
     mock_player.play.assert_called_once_with(expected_stream)
@@ -125,7 +130,7 @@ def test_playback_service_toggle_playing_to_paused(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     service.toggle()
 
     mock_player.pause.assert_called()
@@ -139,7 +144,7 @@ def test_playback_service_toggle_paused_to_playing(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     service.toggle()
     assert app_state.playback_state.get()["status"] == PlaybackStatus.PAUSED
     service.toggle()
@@ -155,7 +160,7 @@ def test_playback_service_stop(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     service.stop()
 
     mock_player.stop.assert_called()
@@ -205,7 +210,7 @@ def test_playback_service_source_failure_leaves_state_stopped(
     service = PlaybackService(mock_player, mock_youtube, app_state)
 
     with pytest.raises(StreamExtractionError):
-        service.play_song(sample_song)
+        _play(service, sample_song)
 
     mock_player.play.assert_not_called()
     assert app_state.current_song.get() is None
@@ -219,7 +224,7 @@ def test_sync_playback_reapplies_volume_when_engine_volume_mismatches(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     mock_player.set_volume.reset_mock()
     mock_player.has_ended.return_value = False
     mock_player.has_failed.return_value = False
@@ -241,7 +246,7 @@ def test_sync_playback_updates_position_while_playing(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     mock_player.has_ended.return_value = False
     mock_player.get_position.return_value = 12.4
 
@@ -258,7 +263,7 @@ def test_sync_playback_skips_set_when_whole_second_unchanged(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     mock_player.has_ended.return_value = False
     mock_player.get_position.return_value = 12.4
     service.sync_playback()
@@ -279,7 +284,7 @@ def test_sync_playback_ended_before_playing_is_failure(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     mock_player.has_ended.return_value = True
     mock_player.has_failed.return_value = False
     mock_player.is_playing.side_effect = None
@@ -301,7 +306,7 @@ def test_sync_playback_ended_after_playing_stops_and_keeps_song(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     mock_player.has_ended.return_value = False
     mock_player.has_failed.return_value = False
     mock_player.is_playing.side_effect = None
@@ -326,7 +331,7 @@ def test_sync_playback_ignores_position_when_not_playing(
     sample_song: Song,
 ) -> None:
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
+    _play(service, sample_song)
     service.toggle()
     mock_player.has_ended.return_value = False
     mock_player.get_position.return_value = 99.0
@@ -335,35 +340,6 @@ def test_sync_playback_ignores_position_when_not_playing(
 
     assert app_state.playback_state.get()["status"] == PlaybackStatus.PAUSED
     assert app_state.playback_state.get()["position"] == 0.0
-
-
-def test_toggle_stopped_with_current_song_replays(
-    mock_youtube: MagicMock,
-    mock_player: MagicMock,
-    app_state: AppState,
-    sample_song: Song,
-) -> None:
-    expected_stream: AudioStream = {
-        "url": "https://stream.example.com/audio.m4a",
-        "http_headers": {
-            "User-Agent": "test-agent",
-            "Referer": "https://www.youtube.com/",
-        },
-    }
-    mock_youtube.get_stream.return_value = expected_stream
-    service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_song(sample_song)
-    current = app_state.playback_state.get()
-    app_state.playback_state.set({**current, "status": PlaybackStatus.STOPPED})
-    mock_youtube.get_stream.reset_mock()
-    mock_player.play.reset_mock()
-
-    service.toggle()
-
-    mock_youtube.get_stream.assert_called_once_with(sample_song["video_id"])
-    mock_player.play.assert_called_once_with(expected_stream)
-    assert app_state.playback_state.get()["status"] == PlaybackStatus.PLAYING
-    assert app_state.current_song.get() == sample_song
 
 
 def test_playback_service_player_failure_leaves_state_stopped(
@@ -376,7 +352,7 @@ def test_playback_service_player_failure_leaves_state_stopped(
     service = PlaybackService(mock_player, mock_youtube, app_state)
 
     with pytest.raises(PlaybackError):
-        service.play_song(sample_song)
+        _play(service, sample_song)
 
     assert app_state.current_song.get() is None
     assert app_state.playback_state.get()["status"] == PlaybackStatus.STOPPED
@@ -404,7 +380,7 @@ def test_resolve_stream_does_not_start_player(
     mock_youtube.get_stream.assert_called_once_with(sample_song["video_id"])
     mock_player.play.assert_not_called()
     assert app_state.playback_state.get()["status"] == PlaybackStatus.STOPPED
-    assert app_state.queue.get() == [sample_song]
+    assert app_state.queue.get() == []
 
 
 def test_start_stream_does_not_resolve_source(
@@ -445,7 +421,8 @@ def test_sync_playback_engine_error_stops_without_advancing_queue(
         "duration": 180,
     }
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_queue([sample_song, next_song], 0)
+    service.set_queue([sample_song, next_song], 0)
+    _play(service, sample_song)
     mock_youtube.get_stream.reset_mock()
     mock_player.has_failed.return_value = True
     mock_player.has_ended.return_value = False
@@ -474,7 +451,8 @@ def test_sync_playback_stall_stops_without_advancing_queue(
         "duration": 180,
     }
     service = PlaybackService(mock_player, mock_youtube, app_state)
-    service.play_queue([sample_song, next_song], 0)
+    service.set_queue([sample_song, next_song], 0)
+    _play(service, sample_song)
     mock_youtube.get_stream.reset_mock()
     mock_player.is_playing.side_effect = None
     mock_player.is_playing.return_value = False

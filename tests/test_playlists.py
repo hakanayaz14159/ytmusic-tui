@@ -1,12 +1,19 @@
 """Playlist persistence and PlaylistService tests."""
 
+import threading
 from unittest.mock import MagicMock
 
 import pytest
 from peewee import SqliteDatabase
+from pytest_mock import MockerFixture
 from textual.widgets import Input
 
-from ytmusic_cli.db.repositories import PlaylistRepository, UserRepository
+from tests.conftest import make_test_app
+from ytmusic_cli.db.repositories import (
+    PlaylistRepository,
+    SongRepository,
+    UserRepository,
+)
 from ytmusic_cli.exceptions import DatabaseError, ValidationError
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.services import (
@@ -16,9 +23,10 @@ from ytmusic_cli.music.services import (
     SearchService,
 )
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import Song, User
+from ytmusic_cli.music.types import Playlist, Song, User
 from ytmusic_cli.tui.modals.add_to_playlist import AddToPlaylistModal
 from ytmusic_cli.tui.shell import AppShell
+from ytmusic_cli.tui.widgets.song_table import SongTable
 
 SAMPLE_SONG: Song = {
     "video_id": "vid1",
@@ -56,7 +64,7 @@ SONG_C: Song = {
 @pytest.fixture
 def playlist_setup(test_db: SqliteDatabase) -> tuple[AccountService, PlaylistService]:
     accounts = AccountService(UserRepository(), AppState())
-    playlists = PlaylistService(PlaylistRepository())
+    playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())
     return accounts, playlists
 
 
@@ -112,7 +120,7 @@ def test_replace_songs_overwrites_membership_and_order(
     test_db: SqliteDatabase,
 ) -> None:
     user = UserRepository().create_user("hzf")
-    repo = PlaylistRepository()
+    repo = PlaylistRepository(SongRepository())
     playlist = repo.create(user["id"], "Favs")
     repo.add_song(playlist["id"], SONG_A)
     repo.add_song(playlist["id"], SONG_B)
@@ -130,7 +138,7 @@ def test_replace_songs_skips_duplicate_video_ids(
     test_db: SqliteDatabase,
 ) -> None:
     user = UserRepository().create_user("hzf")
-    repo = PlaylistRepository()
+    repo = PlaylistRepository(SongRepository())
     playlist = repo.create(user["id"], "Favs")
 
     replaced = repo.replace_songs(playlist["id"], [SONG_A, SONG_B, SONG_A])
@@ -141,9 +149,17 @@ def test_replace_songs_skips_duplicate_video_ids(
 def test_replace_songs_missing_playlist_raises(
     test_db: SqliteDatabase,
 ) -> None:
-    repo = PlaylistRepository()
+    repo = PlaylistRepository(SongRepository())
     with pytest.raises(DatabaseError, match="not found"):
         repo.replace_songs(999, [SONG_A])
+
+
+def test_get_playlist_missing_returns_none(test_db: SqliteDatabase) -> None:
+    assert PlaylistRepository(SongRepository()).get(999) is None
+
+
+def test_get_by_video_id_miss_returns_none(test_db: SqliteDatabase) -> None:
+    assert SongRepository().get_by_video_id("missing") is None
 
 
 def test_create_playlist_from_songs_persists_name_and_order(
@@ -228,12 +244,12 @@ async def test_playlists_mode_opens(
     accounts = AccountService(UserRepository(), state)
     user = accounts.ensure_default_user()
     accounts.select_user(user["id"])
-    playlists = PlaylistService(PlaylistRepository())
+    playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())
     playlists.create_playlist(user["id"], "Study")
 
     playback = MagicMock()
     playback.sync_playback = MagicMock()
-    app = YTMusicApp(
+    app = make_test_app(
         search_service=MagicMock(),
         playback_service=playback,
         account_service=accounts,
@@ -249,6 +265,36 @@ async def test_playlists_mode_opens(
         assert app.query_one(AppShell).current_mode == "playlists"
 
 
+def test_load_playlist_play_skips_duplicate_set_queue(
+    test_db: SqliteDatabase,
+    mocker: MockerFixture,
+) -> None:
+    state = AppState()
+    accounts = AccountService(UserRepository(), state)
+    user = accounts.ensure_default_user()
+    accounts.select_user(user["id"])
+    playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())
+    created = playlists.create_playlist_from_songs(user["id"], "Study", [SONG_A])
+    playback = MagicMock()
+    playback.sync_playback = MagicMock()
+    app = make_test_app(
+        search_service=MagicMock(),
+        playback_service=playback,
+        account_service=accounts,
+        playlist_service=playlists,
+    )
+    play_playlist = mocker.patch.object(app, "play_playlist")
+    playlist = playlists.get_playlist(created["id"])
+
+    app._on_playlist_loaded(playlist, True, 0)
+
+    playback.set_queue.assert_not_called()
+    play_playlist.assert_called_once()
+    songs, start_index = play_playlist.call_args.args
+    assert start_index == 0
+    assert songs[0]["video_id"] == "a"
+
+
 def _app_with_playlists(
     mock_youtube: MagicMock,
     mock_player: MagicMock,
@@ -257,8 +303,8 @@ def _app_with_playlists(
     accounts = AccountService(UserRepository(), state)
     user = accounts.ensure_default_user()
     accounts.select_user(user["id"])
-    playlists = PlaylistService(PlaylistRepository())
-    app = YTMusicApp(
+    playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())
+    app = make_test_app(
         search_service=SearchService(mock_youtube),
         playback_service=PlaybackService(mock_player, mock_youtube, state),
         account_service=accounts,
@@ -312,9 +358,11 @@ async def test_capital_a_on_search_result_opens_playlist_picker(
         await pilot.pause()
         await pilot.press("A")
         await pilot.pause()
+        await pilot.pause()
 
         assert isinstance(app.screen, AddToPlaylistModal)
         await pilot.press("enter")
+        await pilot.pause()
         await pilot.pause()
         loaded = playlists.list_playlists(user["id"])[0]
         assert loaded["songs"][0]["video_id"] == "vid1"
@@ -336,9 +384,11 @@ async def test_capital_a_without_list_adds_current_song(
         await pilot.pause()
         await pilot.press("A")
         await pilot.pause()
+        await pilot.pause()
 
         assert isinstance(app.screen, AddToPlaylistModal)
         await pilot.press("enter")
+        await pilot.pause()
         await pilot.pause()
         loaded = playlists.list_playlists(user["id"])[0]
         assert loaded["songs"][0]["video_id"] == "vid1"
@@ -360,3 +410,173 @@ async def test_capital_a_in_search_input_does_not_open_picker(
 
         assert not isinstance(app.screen, AddToPlaylistModal)
         assert "A" in app.query_one("#search_input", Input).value
+
+
+@pytest.mark.asyncio
+async def test_playlists_n_creates_and_d_deletes(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> None:
+    app, playlists, _state, user = _app_with_playlists(mock_youtube, mock_player)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+        app.screen.query_one("#prompt_input", Input).value = "Fresh"
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        listed = playlists.list_playlists(user["id"])
+        assert any(item["name"] == "Fresh" for item in listed)
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert playlists.list_playlists(user["id"]) == []
+
+
+@pytest.mark.asyncio
+async def test_playlist_create_and_delete_run_off_ui_thread(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app, playlists, _state, _user = _app_with_playlists(mock_youtube, mock_player)
+    ui_thread = threading.get_ident()
+    create_ids: list[int] = []
+    delete_ids: list[int] = []
+    original_create = playlists.create_playlist
+    original_delete = playlists.delete_playlist
+
+    def _create(user_id: int, name: str) -> Playlist:
+        create_ids.append(threading.get_ident())
+        return original_create(user_id, name)
+
+    def _delete(playlist_id: int) -> None:
+        delete_ids.append(threading.get_ident())
+        original_delete(playlist_id)
+
+    mocker.patch.object(playlists, "create_playlist", side_effect=_create)
+    mocker.patch.object(playlists, "delete_playlist", side_effect=_delete)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("n")
+        await pilot.pause()
+        app.screen.query_one("#prompt_input", Input).value = "Fresh"
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert create_ids
+        assert create_ids[0] != ui_thread
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.press("y")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert delete_ids
+        assert delete_ids[0] != ui_thread
+
+
+@pytest.mark.asyncio
+async def test_playlist_remove_song_runs_off_ui_thread(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app, playlists, _state, user = _app_with_playlists(mock_youtube, mock_player)
+    playlists.create_playlist_from_songs(user["id"], "Study", [SONG_A, SONG_B])
+    ui_thread = threading.get_ident()
+    remove_ids: list[int] = []
+    original_remove = playlists.remove_song
+
+    def _remove(playlist_id: int, video_id: str) -> None:
+        remove_ids.append(threading.get_ident())
+        original_remove(playlist_id, video_id)
+
+    mocker.patch.object(playlists, "remove_song", side_effect=_remove)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("3")
+        await pilot.pause()
+        await pilot.pause()
+        app.query_one("#playlist_tracks", SongTable).focus_list()
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert remove_ids
+        assert remove_ids[0] != ui_thread
+
+
+@pytest.mark.asyncio
+async def test_add_song_to_playlist_lists_and_adds_off_ui_thread(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    mock_youtube.search.return_value = [SAMPLE_SONG]
+    app, playlists, _state, user = _app_with_playlists(mock_youtube, mock_player)
+    playlists.create_playlist(user["id"], "Favs")
+    ui_thread = threading.get_ident()
+    list_ids: list[int] = []
+    add_ids: list[int] = []
+    original_list = playlists.list_playlists
+    original_add = playlists.add_song
+
+    def _list(user_id: int) -> list[Playlist]:
+        list_ids.append(threading.get_ident())
+        return original_list(user_id)
+
+    def _add(playlist_id: int, song: Song) -> None:
+        add_ids.append(threading.get_ident())
+        original_add(playlist_id, song)
+
+    mocker.patch.object(playlists, "list_playlists", side_effect=_list)
+    mocker.patch.object(playlists, "add_song", side_effect=_add)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.query_one("#search_input", Input).value = "ambient"
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("A")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert isinstance(app.screen, AddToPlaylistModal)
+        assert list_ids
+        assert list_ids[0] != ui_thread
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert add_ids
+        assert add_ids[0] != ui_thread

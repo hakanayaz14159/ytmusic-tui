@@ -1,11 +1,11 @@
 """Search mode: query YouTube and play or queue results."""
 
+from __future__ import annotations
+
 import logging
-from collections.abc import Callable  # noqa: TC003
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar
 
 from textual import work
-from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Vertical
 from textual.message import Message
@@ -18,14 +18,17 @@ from ytmusic_cli.consts import (
 )
 from ytmusic_cli.exceptions import YTMusicError
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import Song
+from ytmusic_cli.tui.app import ytmusic_app
 from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable
 from ytmusic_cli.tui.widgets.suggestion_list import SuggestionList
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from textual.app import ComposeResult
     from textual.timer import Timer
 
-    from ytmusic_cli.main import YTMusicApp
+    from ytmusic_cli.music.types import Song
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +86,9 @@ class SearchMode(Vertical):
 
     def focus_query(self) -> None:
         self.query_one("#search_input", Input).focus()
+
+    def reload(self) -> None:
+        pass
 
     def activate(self) -> None:
         table = self.query_one("#results_table", SongTable)
@@ -144,7 +150,7 @@ class SearchMode(Vertical):
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if not isinstance(event.item, SongRow):
             return
-        app = cast("YTMusicApp", self.app)
+        app = ytmusic_app(self.app)
         app.play_song(event.item.song)
 
     def _request_suggestions(self) -> None:
@@ -157,18 +163,18 @@ class SearchMode(Vertical):
 
     @work(thread=True, exclusive=True, group="suggest")
     def _run_suggest(self, query: str) -> None:
-        app = cast("YTMusicApp", self.app)
+        app = ytmusic_app(self.app)
         try:
             results = app.search_service.suggest(query)
-        except YTMusicError:
+        except YTMusicError as err:
             logger.exception("suggest failed query=%r", query)
-            app.call_from_thread(self._on_suggest_error)
+            app.call_from_thread(self._on_suggest_error, str(err) or "Suggest failed")
             return
         app.call_from_thread(self._on_suggest_success, query, results)
 
     @work(thread=True, exclusive=True, group="search")
     def _run_search(self, query: str) -> None:
-        app = cast("YTMusicApp", self.app)
+        app = ytmusic_app(self.app)
         service = app.search_service
         limit = DEFAULT_SEARCH_LIMIT
         user = self._state.current_user.get()
@@ -186,8 +192,9 @@ class SearchMode(Vertical):
             return
         self._suggestions().set_suggestions(results)
 
-    def _on_suggest_error(self) -> None:
+    def _on_suggest_error(self, message: str) -> None:
         self._hide_suggestions()
+        self.notify(message, severity="warning")
 
     def _begin_search(self, query: str) -> None:
         self._set_status(f"Searching “{query}”…")

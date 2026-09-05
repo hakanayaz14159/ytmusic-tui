@@ -111,6 +111,10 @@ warn_redundant_casts = true
 warn_unused_ignores = true
 warn_unreachable = true
 strict_equality = true
+warn_return_any = true
+disallow_untyped_calls = true
+disallow_subclassing_any = true
+warn_unused_configs = true
 
 [[tool.mypy.overrides]]
 module = [
@@ -120,11 +124,16 @@ module = [
 ]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "ytmusic_cli.db.db"
+disallow_subclassing_any = false
+
 [tool.pytest.ini_options]
 minversion = "8.0"
-addopts = "-ra -q --strict-markers --strict-config"
+addopts = "-ra -q --strict-markers --strict-config -m \"not network\""
 testpaths = ["tests"]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = ["network: hits real YouTube via yt-dlp; skipped when offline"]
 filterwarnings = [
     "error",
@@ -137,6 +146,7 @@ source = ["ytmusic_cli"]
 branch = true
 
 [tool.coverage.report]
+fail_under = 83
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

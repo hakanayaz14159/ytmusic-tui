@@ -2,7 +2,7 @@
 
 import logging
 import sys
-from typing import Any, ClassVar
+from typing import ClassVar
 
 import click
 from textual import work
@@ -12,7 +12,11 @@ from textual.widgets import Input
 
 from ytmusic_cli import __version__
 from ytmusic_cli.db.bootstrap import bootstrap
-from ytmusic_cli.db.repositories import PlaylistRepository, UserRepository
+from ytmusic_cli.db.repositories import (
+    PlaylistRepository,
+    SongRepository,
+    UserRepository,
+)
 from ytmusic_cli.exceptions import YTMusicError
 from ytmusic_cli.music.player import VLCPlayer
 from ytmusic_cli.music.services import (
@@ -27,6 +31,7 @@ from ytmusic_cli.music.types import (
     AudioStream,
     PlaybackStatus,
     PlaybackTickAction,
+    Playlist,
     Song,
     User,
 )
@@ -55,9 +60,9 @@ class YTMusicApp(App[None]):
         Binding("slash", "focus_search", "Search", show=False),
         Binding("question_mark", "help", "Help", show=False),
         Binding("space", "toggle_playback", "Play/Pause", show=False),
-        Binding("plus", "volume_up", "Vol +", show=False, priority=True),
-        Binding("equals_sign", "volume_up", "Vol +", show=False, priority=True),
-        Binding("minus", "volume_down", "Vol -", show=False, priority=True),
+        Binding("plus", "volume_up('+')", "Vol +", show=False, priority=True),
+        Binding("equals_sign", "volume_up('=')", "Vol +", show=False, priority=True),
+        Binding("minus", "volume_down('-')", "Vol -", show=False, priority=True),
         Binding("greater_than", "play_next", "Next", show=False),
         Binding("less_than", "play_previous", "Previous", show=False),
         Binding("1", "mode_search", show=False),
@@ -67,33 +72,20 @@ class YTMusicApp(App[None]):
         Binding("5", "mode_settings", show=False),
         Binding("tab", "next_mode", show=False, priority=True),
         Binding("shift+tab", "previous_mode", show=False, priority=True),
-        Binding("A,shift+a", "add_to_playlist", show=False),
+        Binding("A", "add_to_playlist", show=False),
     ]
 
     def __init__(
         self,
-        *args: Any,
-        search_service: SearchService | None = None,
-        playback_service: PlaybackService | None = None,
-        account_service: AccountService | None = None,
-        playlist_service: PlaylistService | None = None,
-        settings_service: SettingsService | None = None,
-        **kwargs: Any,
+        search_service: SearchService,
+        playback_service: PlaybackService,
+        account_service: AccountService,
+        playlist_service: PlaylistService,
+        settings_service: SettingsService,
     ) -> None:
-        super().__init__(*args, **kwargs)
+        super().__init__()
         self.register_theme(ytmusic_theme)
         self.theme = "ytmusic"
-
-        if search_service is None or playback_service is None:
-            source = Youtube()
-            player = VLCPlayer()
-            search_service = search_service or SearchService(source=source)
-            playback_service = playback_service or PlaybackService(
-                player=player,
-                source=source,
-                state=AppState(),
-            )
-
         self.search_service = search_service
         self.playback_service = playback_service
         self.account_service = account_service
@@ -141,10 +133,14 @@ class YTMusicApp(App[None]):
             logger.exception("toggle failed")
             self.notify(f"Playback failed: {err}", severity="error")
 
-    def action_volume_up(self) -> None:
+    def action_volume_up(self, char: str = "+") -> None:
+        if self._insert_if_input(char):
+            return
         self.playback_service.volume_up()
 
-    def action_volume_down(self) -> None:
+    def action_volume_down(self, char: str = "-") -> None:
+        if self._insert_if_input(char):
+            return
         self.playback_service.volume_down()
 
     def action_play_next(self) -> None:
@@ -189,7 +185,7 @@ class YTMusicApp(App[None]):
         self._shell().previous_mode()
 
     def action_add_to_playlist(self) -> None:
-        if self._focused_is_input():
+        if self._insert_if_input("A"):
             return
         song = self._playlist_target_song()
         if song is None:
@@ -222,7 +218,6 @@ class YTMusicApp(App[None]):
             return
         self.call_from_thread(self._begin_playback, song, stream)
 
-    @work(thread=True, exclusive=True, group="playback")
     def append_song(self, song: Song) -> None:
         logger.info(
             "append requested video_id=%s title=%s",
@@ -232,23 +227,9 @@ class YTMusicApp(App[None]):
         status = AppState().playback_state.get()["status"]
         self.playback_service.enqueue(song)
         if status != PlaybackStatus.STOPPED:
-            self.call_from_thread(
-                self.notify,
-                f"Queued: {song['title']}",
-                severity="information",
-            )
+            self.notify(f"Queued: {song['title']}", severity="information")
             return
-        try:
-            stream = self.playback_service.resolve_stream(song)
-        except YTMusicError as err:
-            logger.exception("queue resolve failed video_id=%s", song["video_id"])
-            self.call_from_thread(
-                self.notify,
-                f"Queue failed: {err}",
-                severity="error",
-            )
-            return
-        self.call_from_thread(self._begin_playback, song, stream)
+        self.play_song(song)
 
     def load_playlist_into_queue(
         self,
@@ -257,32 +238,60 @@ class YTMusicApp(App[None]):
         play: bool,
         start_index: int = 0,
     ) -> None:
-        context = self._require_playlist_context()
-        if context is None:
+        if self._require_playlist_user() is None:
             return
-        service, _user = context
+        self._load_playlist_worker(playlist_id, play, start_index)
+
+    @work(thread=True, exclusive=True, group="playlist-io")
+    def _load_playlist_worker(
+        self,
+        playlist_id: int,
+        play: bool,
+        start_index: int,
+    ) -> None:
         try:
-            playlist = service.get_playlist(playlist_id)
-            if play:
-                self.playback_service.set_queue(playlist["songs"], start_index)
-            else:
-                self.playback_service.load_queue(playlist["songs"])
+            playlist = self.playlist_service.get_playlist(playlist_id)
         except YTMusicError as err:
             logger.exception("playlist load failed id=%s", playlist_id)
-            self.notify(str(err), severity="error")
+            self.call_from_thread(self.notify, str(err), severity="error")
             return
-        AppState().current_playlist.set(playlist)
+        self.call_from_thread(
+            self._on_playlist_loaded,
+            playlist,
+            play,
+            start_index,
+        )
+
+    def _on_playlist_loaded(
+        self,
+        playlist: Playlist,
+        play: bool,
+        start_index: int,
+    ) -> None:
+        self.playlist_service.adopt_working_playlist(playlist)
         if play:
             self.play_playlist(playlist["songs"], start_index)
             return
+        self.playback_service.load_queue(playlist["songs"])
         self.notify(f"Working: {playlist['name']}", severity="information")
 
     def prompt_open_working_playlist(self) -> None:
-        context = self._require_playlist_context()
-        if context is None:
+        user = self._require_playlist_user()
+        if user is None:
             return
-        service, user = context
-        playlists = service.list_playlists(user["id"])
+        self._prompt_open_worker(user["id"])
+
+    @work(thread=True, exclusive=True, group="playlist-io")
+    def _prompt_open_worker(self, user_id: int) -> None:
+        try:
+            playlists = self.playlist_service.list_playlists(user_id)
+        except YTMusicError as err:
+            logger.exception("playlist list for open failed")
+            self.call_from_thread(self.notify, str(err), severity="error")
+            return
+        self.call_from_thread(self._show_open_playlist_modal, playlists)
+
+    def _show_open_playlist_modal(self, playlists: list[Playlist]) -> None:
         self.push_screen(
             AddToPlaylistModal(playlists, title="Open playlist"),
             self._on_open_working_playlist,
@@ -292,7 +301,7 @@ class YTMusicApp(App[None]):
         if not AppState().queue.get():
             self.notify("Queue is empty", severity="warning")
             return
-        if self._require_playlist_context() is None:
+        if self._require_playlist_user() is None:
             return
         self.push_screen(
             PromptModal("Save queue as playlist", "Name"),
@@ -313,53 +322,64 @@ class YTMusicApp(App[None]):
         )
 
     def save_queue_as_playlist(self, name: str) -> None:
-        context = self._require_playlist_context()
-        if context is None:
+        user = self._require_playlist_user()
+        if user is None:
             return
-        service, user = context
+        self._save_queue_worker(name, user["id"], list(AppState().queue.get()))
+
+    @work(thread=True, exclusive=True, group="playlist-io")
+    def _save_queue_worker(
+        self,
+        name: str,
+        user_id: int,
+        songs: list[Song],
+    ) -> None:
         try:
-            playlist = service.create_playlist_from_songs(
-                user["id"],
+            playlist = self.playlist_service.create_playlist_from_songs(
+                user_id,
                 name,
-                AppState().queue.get(),
+                songs,
             )
         except YTMusicError as err:
             logger.exception("queue save as playlist failed")
-            self.notify(str(err), severity="error")
+            self.call_from_thread(self.notify, str(err), severity="error")
             return
-        AppState().current_playlist.set(playlist)
+        self.call_from_thread(self._on_playlist_saved, playlist)
+
+    def _on_playlist_saved(self, playlist: Playlist) -> None:
+        self.playlist_service.adopt_working_playlist(playlist)
         self.notify(f"Saved playlist {playlist['name']}", severity="information")
 
     def overwrite_working_playlist(self) -> None:
-        context = self._require_playlist_context()
+        user = self._require_playlist_user()
         working = AppState().current_playlist.get()
-        if context is None or working is None:
+        if user is None or working is None:
             return
-        service, _user = context
+        self._overwrite_worker(working["id"], list(AppState().queue.get()))
+
+    @work(thread=True, exclusive=True, group="playlist-io")
+    def _overwrite_worker(self, playlist_id: int, songs: list[Song]) -> None:
         try:
-            playlist = service.replace_songs(working["id"], AppState().queue.get())
+            playlist = self.playlist_service.replace_songs(playlist_id, songs)
         except YTMusicError as err:
             logger.exception("working playlist overwrite failed")
-            self.notify(str(err), severity="error")
+            self.call_from_thread(self.notify, str(err), severity="error")
             return
-        AppState().current_playlist.set(playlist)
+        self.call_from_thread(self._on_playlist_overwritten, playlist)
+
+    def _on_playlist_overwritten(self, playlist: Playlist) -> None:
+        self.playlist_service.adopt_working_playlist(playlist)
         self.notify(f"Updated {playlist['name']}", severity="information")
 
-    @work(thread=True, exclusive=True, group="playback")
     def play_playlist(self, songs: list[Song], start_index: int) -> None:
         logger.info("playlist play count=%s start_index=%s", len(songs), start_index)
         try:
             song = self.playback_service.set_queue(songs, start_index)
-            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             logger.exception("playlist play failed")
-            self.call_from_thread(
-                self.notify,
-                f"Playback failed: {err}",
-                severity="error",
-            )
+            self.notify(f"Playback failed: {err}", severity="error")
             return
-        self.call_from_thread(self._begin_playback, song, stream)
+        self.play_song(song)
 
     def remove_from_queue(self, index: int) -> None:
         try:
@@ -372,24 +392,46 @@ class YTMusicApp(App[None]):
             self.play_song(song)
 
     def add_song_to_playlist(self, song: Song) -> None:
-        context = self._require_playlist_context()
-        if context is None:
+        user = self._require_playlist_user()
+        if user is None:
             return
-        service, user = context
-        playlists = service.list_playlists(user["id"])
+        self._list_playlists_for_add(song, user["id"])
 
+    @work(thread=True, exclusive=True, group="playlist-io")
+    def _list_playlists_for_add(self, song: Song, user_id: int) -> None:
+        try:
+            playlists = self.playlist_service.list_playlists(user_id)
+        except YTMusicError as err:
+            logger.exception("playlist list for add failed")
+            self.call_from_thread(self.notify, str(err), severity="error")
+            return
+        self.call_from_thread(self._show_add_to_playlist_modal, song, playlists)
+
+    def _show_add_to_playlist_modal(
+        self,
+        song: Song,
+        playlists: list[Playlist],
+    ) -> None:
         def _on_pick(playlist_id: int | None) -> None:
             if playlist_id is None:
                 return
-            try:
-                service.add_song(playlist_id, song)
-            except YTMusicError as err:
-                logger.exception("playlist add failed id=%s", playlist_id)
-                self.notify(str(err), severity="error")
-                return
-            self.notify("Added to playlist", severity="information")
+            self._add_song_worker(playlist_id, song)
 
         self.push_screen(AddToPlaylistModal(playlists), _on_pick)
+
+    @work(thread=True, exclusive=True, group="playlist-io")
+    def _add_song_worker(self, playlist_id: int, song: Song) -> None:
+        try:
+            self.playlist_service.add_song(playlist_id, song)
+        except YTMusicError as err:
+            logger.exception("playlist add failed id=%s", playlist_id)
+            self.call_from_thread(self.notify, str(err), severity="error")
+            return
+        self.call_from_thread(
+            self.notify,
+            "Added to playlist",
+            severity="information",
+        )
 
     def _begin_playback(self, song: Song, stream: AudioStream) -> None:
         try:
@@ -414,70 +456,44 @@ class YTMusicApp(App[None]):
             logger.info("playback tick ended")
             self._play_next()
 
-    @work(thread=True, exclusive=True, group="playback")
     def _replay_current(self) -> None:
         song = AppState().current_song.get()
         if song is None:
             return
         logger.info("replay requested video_id=%s", song["video_id"])
-        try:
-            stream = self.playback_service.resolve_stream(song)
-        except YTMusicError as err:
-            logger.exception("replay resolve failed video_id=%s", song["video_id"])
-            self.call_from_thread(
-                self.notify,
-                f"Playback failed: {err}",
-                severity="error",
-            )
-            return
-        self.call_from_thread(self._begin_playback, song, stream)
+        self.play_song(song)
 
-    @work(thread=True, exclusive=True, group="playback")
     def _play_next(self) -> None:
         logger.info("play next requested")
         try:
             song = self.playback_service.advance_to_next()
-            if song is None:
-                return
-            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             logger.exception("play next failed")
-            self.call_from_thread(
-                self.notify,
-                f"Playback failed: {err}",
-                severity="error",
-            )
+            self.notify(f"Playback failed: {err}", severity="error")
             return
-        self.call_from_thread(self._begin_playback, song, stream)
+        if song is None:
+            return
+        self.play_song(song)
 
-    @work(thread=True, exclusive=True, group="playback")
     def _play_previous(self) -> None:
         logger.info("play previous requested")
         try:
             song = self.playback_service.advance_to_previous()
-            if song is None:
-                return
-            stream = self.playback_service.resolve_stream(song)
         except YTMusicError as err:
             logger.exception("play previous failed")
-            self.call_from_thread(
-                self.notify,
-                f"Playback failed: {err}",
-                severity="error",
-            )
+            self.notify(f"Playback failed: {err}", severity="error")
             return
-        self.call_from_thread(self._begin_playback, song, stream)
+        if song is None:
+            return
+        self.play_song(song)
 
-    def _require_playlist_context(self) -> tuple[PlaylistService, User] | None:
-        if self.playlist_service is None:
-            self.notify("Playlists are unavailable", severity="warning")
-            return None
+    def _require_playlist_user(self) -> User | None:
         user = AppState().current_user.get()
         if user is None:
             self.notify("Create a profile to use playlists", severity="warning")
             self._shell().switch_mode("profiles")
             return None
-        return self.playlist_service, user
+        return user
 
     def _playlist_target_song(self) -> Song | None:
         focused = self.focused
@@ -528,7 +544,7 @@ def build_production_app() -> YTMusicApp:
         search_service=SearchService(source),
         playback_service=PlaybackService(player, source, state),
         account_service=AccountService(users, state),
-        playlist_service=PlaylistService(PlaylistRepository()),
+        playlist_service=PlaylistService(PlaylistRepository(SongRepository()), state),
         settings_service=SettingsService(users, state),
     )
 

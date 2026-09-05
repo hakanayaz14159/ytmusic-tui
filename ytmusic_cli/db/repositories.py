@@ -6,6 +6,7 @@ from ytmusic_cli.db.playlist import Playlist as DbPlaylist
 from ytmusic_cli.db.song import Song as DbSong
 from ytmusic_cli.db.user import User as DbUser
 from ytmusic_cli.exceptions import DatabaseError, ValidationError
+from ytmusic_cli.music.ports import SongRepositoryProtocol
 from ytmusic_cli.music.types import Playlist, Song, User, UserSettings
 
 
@@ -106,6 +107,9 @@ class SongRepository:
 
 
 class PlaylistRepository:
+    def __init__(self, songs: SongRepositoryProtocol) -> None:
+        self._songs = songs
+
     def list_for_user(self, user_id: int) -> list[Playlist]:
         query = (
             DbPlaylist.select()
@@ -129,7 +133,7 @@ class PlaylistRepository:
         playlist = DbPlaylist.get_or_none(DbPlaylist.id == playlist_id)
         if playlist is None:
             raise DatabaseError(f"Playlist {playlist_id} not found")
-        db_song = SongRepository().upsert(song)
+        db_song = self._songs.upsert(song)
         row = DbSong.get(DbSong.video_id == db_song["video_id"])
         existing = {item.video_id for item in playlist.songs}
         if song["video_id"] in existing:
@@ -151,13 +155,12 @@ class PlaylistRepository:
             raise DatabaseError(f"Playlist {playlist_id} not found")
         playlist.songs.clear()
         seen: set[str] = set()
-        song_repo = SongRepository()
         for song in songs:
             video_id = song["video_id"]
             if video_id in seen:
                 continue
             seen.add(video_id)
-            song_repo.upsert(song)
+            self._songs.upsert(song)
             row = DbSong.get(DbSong.video_id == video_id)
             playlist.songs.add(row)
         loaded = self.get(playlist_id)

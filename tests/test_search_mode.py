@@ -1,19 +1,20 @@
 """Textual pilot tests for Search mode."""
 
 import threading
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from textual.pilot import Pilot
 from textual.widgets import Input, Label
 
+from tests.conftest import make_test_app
 from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT
 from ytmusic_cli.exceptions import SuggestionError
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.types import Song
 from ytmusic_cli.tui.format import format_song_line
 from ytmusic_cli.tui.modes.search import SearchMode
-from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable
+from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable, VimListView
 from ytmusic_cli.tui.widgets.suggestion_list import SuggestionList
 
 SAMPLE_SONGS: list[Song] = [
@@ -56,7 +57,7 @@ def _make_app(
     mock_search_service: MagicMock,
     mock_playback_service: MagicMock,
 ) -> YTMusicApp:
-    return YTMusicApp(
+    return make_test_app(
         search_service=mock_search_service,
         playback_service=mock_playback_service,
     )
@@ -113,7 +114,6 @@ async def test_selecting_result_delegates_play_song_to_app(
     mock_playback_service: MagicMock,
 ) -> None:
     app = _make_app(mock_search_service, mock_playback_service)
-    app.play_song = MagicMock()
 
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -124,12 +124,13 @@ async def test_selecting_result_delegates_play_song_to_app(
         await pilot.pause()
 
         table = app.query_one("#results_table", SongTable)
-        table.query_one("ListView").index = 0
-        await pilot.press("enter")
-        await pilot.pause()
-        await pilot.pause()
+        table.query_one(VimListView).index = 0
+        with patch.object(app, "play_song", MagicMock()) as play_song:
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()
 
-        app.play_song.assert_called_once_with(SAMPLE_SONGS[0])
+            play_song.assert_called_once_with(SAMPLE_SONGS[0])
 
 
 @pytest.mark.asyncio
@@ -193,7 +194,7 @@ async def test_search_status_shows_searching_then_count_and_hides_stale_table(
 
     def _blocked_search(query: str, max_results: int = 10) -> list[Song]:
         started.set()
-        if not release.wait(timeout=5):
+        if not release.wait(timeout=1.0):
             raise TimeoutError("search was not released")
         return SAMPLE_SONGS
 
@@ -403,7 +404,7 @@ async def test_escape_hides_suggestions_and_keeps_input_focus(
 
 
 @pytest.mark.asyncio
-async def test_suggest_failure_hides_list_without_notify(
+async def test_suggest_failure_hides_list_and_notifies(
     mock_search_service: MagicMock,
     mock_playback_service: MagicMock,
 ) -> None:
@@ -422,4 +423,7 @@ async def test_suggest_failure_hides_list_without_notify(
 
         assert app.query_one("#suggestion_list", SuggestionList).display is False
         notifications = list(app._notifications)
-        assert not any("suggest down" in n.message.lower() for n in notifications)
+        assert any(
+            n.severity == "warning" and "suggest down" in n.message.lower()
+            for n in notifications
+        )

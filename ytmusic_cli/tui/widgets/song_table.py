@@ -22,6 +22,7 @@ class SongRow(ListItem):
     def __init__(self, song: Song, *, playing: bool = False) -> None:
         super().__init__(Label(format_song_line(song, playing=playing)))
         self.song = song
+        self.set_class(playing, "-playing")
 
 
 class VimListView(ListView):
@@ -45,8 +46,9 @@ class SongTable(Vertical):
             self.song = song
 
     class DeleteRequested(Message):
-        def __init__(self, index: int, song: Song) -> None:
+        def __init__(self, table: "SongTable", index: int, song: Song) -> None:
             super().__init__()
+            self.table = table
             self.index = index
             self.song = song
 
@@ -118,7 +120,7 @@ class SongTable(Vertical):
         song = self.get_selected_song()
         index = self.selected_index()
         if song is not None and index is not None:
-            self.post_message(self.DeleteRequested(index, song))
+            self.post_message(self.DeleteRequested(self, index, song))
 
     def _rebuild(self) -> None:
         song_list = self.query_one(VimListView)

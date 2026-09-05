@@ -1,11 +1,14 @@
 """Persistent player chrome: modes, now-playing, and status."""
 
+from typing import Protocol, runtime_checkable
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widget import Widget
-from textual.widgets import Label
+from textual.widgets import Label, ListView
 
 from ytmusic_cli.consts import COMPACT_HEIGHT_ROWS, WIDE_LAYOUT_COLUMNS
+from ytmusic_cli.tui.app import ytmusic_app
 from ytmusic_cli.tui.modes.playlists import PlaylistsMode
 from ytmusic_cli.tui.modes.profiles import ProfilesMode
 from ytmusic_cli.tui.modes.queue import QueueMode
@@ -14,6 +17,7 @@ from ytmusic_cli.tui.modes.settings import SettingsMode
 from ytmusic_cli.tui.widgets.mode_bar import ModeBar
 from ytmusic_cli.tui.widgets.now_playing import NowPlaying
 from ytmusic_cli.tui.widgets.queue_list import QueueList
+from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable
 from ytmusic_cli.tui.widgets.status_bar import StatusBar
 
 MODES: tuple[str, ...] = (
@@ -26,15 +30,24 @@ MODES: tuple[str, ...] = (
 
 HINTS: dict[str, str] = {
     "search": (
-        "enter play   down/up complete   a queue   A playlist   j/k move   / search   ? help"
+        "enter play   space pause   down/up complete   a queue   "
+        "A playlist   j/k move   / search   ? help"
     ),
     "queue": (
-        "enter play   d remove   o open   n save   w write   A playlist   ? help"
+        "enter play   d remove   j/k move   o open   n save   "
+        "w write   A playlist   ? help"
     ),
     "playlists": "enter play   n new   d delete   A add   ? help",
     "profiles": "enter select   n new   d delete   ? help",
-    "settings": "j/k field   ←/→ adjust   s save   ? help",
+    "settings": "j/k field   ←/→/h/l adjust   s save   ? help",
 }
+
+
+@runtime_checkable
+class AppMode(Protocol):
+    def activate(self) -> None: ...
+
+    def reload(self) -> None: ...
 
 
 class AppShell(Vertical):
@@ -86,12 +99,9 @@ class AppShell(Vertical):
         self.query_one("#status_bar", StatusBar).set_hints(HINTS[mode_id])
         self._apply_wide_layout()
         widget = self.query_one(f"#{mode_id}", Widget)
-        reload = getattr(widget, "reload", None)
-        if callable(reload):
-            reload()
-        activate = getattr(widget, "activate", None)
-        if callable(activate):
-            activate()
+        if isinstance(widget, AppMode):
+            widget.reload()
+            widget.activate()
 
     def next_mode(self) -> None:
         index = MODES.index(self.current_mode)
@@ -100,6 +110,27 @@ class AppShell(Vertical):
     def previous_mode(self) -> None:
         index = MODES.index(self.current_mode)
         self.switch_mode(MODES[(index - 1) % len(MODES)])
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        if not isinstance(event.item, SongRow):
+            return
+        if not any(
+            isinstance(node, QueueList) for node in event.item.ancestors_with_self
+        ):
+            return
+        app = ytmusic_app(self.app)
+        app.play_song(event.item.song)
+        event.stop()
+
+    def on_song_table_delete_requested(
+        self,
+        message: SongTable.DeleteRequested,
+    ) -> None:
+        if not isinstance(message.table, QueueList):
+            return
+        app = ytmusic_app(self.app)
+        app.remove_from_queue(message.index)
+        message.stop()
 
     def _apply_wide_layout(self) -> None:
         pane = self.query_one("#queue_pane", Vertical)

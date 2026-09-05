@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -25,6 +25,46 @@ _AUDIO_FORMAT = "bestaudio[protocol^=http]/bestaudio/best"
 _SUGGEST_ENDPOINT = "https://suggestqueries.google.com/complete/search"
 _SUGGEST_TIMEOUT_SECONDS = 5
 _SUGGEST_USER_AGENT = "Mozilla/5.0"
+
+
+def _string_field(value: object, default: str) -> str:
+    if isinstance(value, str) and value:
+        return value
+    return default
+
+
+def _optional_string(value: object) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def _duration_seconds(value: object) -> int:
+    if value is None or isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return max(0, value)
+    if isinstance(value, float):
+        return max(0, int(value))
+    if isinstance(value, str):
+        try:
+            return max(0, int(float(value)))
+        except ValueError:
+            return 0
+    return 0
+
+
+def _http_headers(value: object) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise StreamExtractionError("Invalid stream headers")
+    headers: dict[str, str] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not isinstance(item, str):
+            raise StreamExtractionError("Invalid stream headers")
+        headers[key] = item
+    return headers
 
 
 def _parse_suggest_payload(payload: object, max_results: int) -> list[str]:
@@ -156,24 +196,35 @@ class Youtube:
                         f"Could not extract info for video: {video_id}"
                     )
 
-                top_headers: dict[str, str] = dict(info.get("http_headers") or {})
+                top_headers = _http_headers(info.get("http_headers"))
 
                 if "url" in info:
+                    url = info["url"]
+                    if not isinstance(url, str) or not url:
+                        raise StreamExtractionError("Invalid stream URL")
                     stream = AudioStream(
-                        url=info["url"],
+                        url=url,
                         http_headers=top_headers,
                     )
                     _log_stream(video_id, stream)
                     return stream
-                elif info.get("formats"):
-                    for fmt in info["formats"]:
+                formats = info.get("formats")
+                if isinstance(formats, list):
+                    for fmt in formats:
+                        if not isinstance(fmt, dict):
+                            raise StreamExtractionError("Invalid stream format")
                         if fmt.get("acodec") != "none" and fmt.get("url"):
-                            fmt_headers: dict[str, str] = dict(
-                                fmt.get("http_headers") or top_headers
-                            )
+                            url = fmt.get("url")
+                            if not isinstance(url, str):
+                                raise StreamExtractionError("Invalid stream URL")
+                            headers = fmt.get("http_headers")
                             stream = AudioStream(
-                                url=fmt["url"],
-                                http_headers=fmt_headers,
+                                url=url,
+                                http_headers=(
+                                    _http_headers(headers)
+                                    if headers is not None
+                                    else top_headers
+                                ),
                             )
                             _log_stream(video_id, stream)
                             return stream
@@ -189,19 +240,25 @@ class Youtube:
                 f"Failed to get stream URL for video {video_id}: {e!s}"
             ) from e
 
-    def _convert_entry_to_song(self, entry: dict[str, Any]) -> Song | None:
+    def _convert_entry_to_song(self, entry: object) -> Song | None:
+        if not isinstance(entry, Mapping):
+            return None
         raw_id = entry.get("id")
-        if not raw_id:
+        if not isinstance(raw_id, str) or not raw_id:
             return None
 
-        duration = entry.get("duration")
-        # Flat search yields channel/uploader, not a music artist.
+        title = _string_field(entry.get("title"), "Unknown Title")
+        uploader = entry.get("uploader", entry.get("channel", "Unknown Uploader"))
+        artist = _string_field(uploader, "Unknown Uploader")
+        album = _optional_string(entry.get("album")) or _optional_string(
+            entry.get("playlist_title")
+        )
         return Song(
-            video_id=str(raw_id),
-            title=entry.get("title", "Unknown Title"),
-            artist=entry.get("uploader", entry.get("channel", "Unknown Uploader")),
-            album=entry.get("album") or entry.get("playlist_title"),
-            duration=int(duration) if duration is not None else 0,
+            video_id=raw_id,
+            title=title,
+            artist=artist,
+            album=album,
+            duration=_duration_seconds(entry.get("duration")),
         )
 
     def _normalize_video_url(self, video_id: str) -> str:

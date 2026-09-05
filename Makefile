@@ -26,6 +26,9 @@ test: ## Run tests
 test-cov: ## Run tests with coverage
 	uv run pytest --cov=ytmusic_cli --cov-report=html --cov-report=term
 
+coverage: ## Run the coverage gate (fail_under from pyproject)
+	uv run pytest --cov=ytmusic_cli --cov-report=term-missing
+
 clean: ## Clean build artifacts
 	rm -rf build/
 	rm -rf dist/

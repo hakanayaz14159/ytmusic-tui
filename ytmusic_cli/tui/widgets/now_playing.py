@@ -1,21 +1,29 @@
 """Always-visible now-playing strip."""
 
-from collections.abc import Callable  # noqa: TC003
+from __future__ import annotations
 
-from textual.app import ComposeResult
+from typing import TYPE_CHECKING
+
 from textual.containers import Vertical
 from textual.message import Message
 from textual.widgets import Static
 
 from ytmusic_cli.consts import COMPACT_HEIGHT_ROWS
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackState, PlaybackStatus, Song
+from ytmusic_cli.music.types import PlaybackState, PlaybackStatus
 from ytmusic_cli.tui.format import (
     UNKNOWN_UPLOADER,
     format_duration,
     format_progress_bar,
     format_volume_gauge,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from textual.app import ComposeResult
+
+    from ytmusic_cli.music.types import Song
 
 _STATUS_GLYPHS: dict[PlaybackStatus, str] = {
     PlaybackStatus.PLAYING: "▶",

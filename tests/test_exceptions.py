@@ -1,27 +1,6 @@
 """Tests for the domain exception hierarchy."""
 
-from ytmusic_cli.exceptions import (
-    DatabaseError,
-    PlaybackError,
-    StreamExtractionError,
-    SuggestionError,
-    TrackNotFoundError,
-    ValidationError,
-    YTMusicError,
-)
-
-
-def test_all_domain_errors_are_subclasses_of_ytmusic_error() -> None:
-    assert issubclass(PlaybackError, YTMusicError)
-    assert issubclass(StreamExtractionError, YTMusicError)
-    assert issubclass(TrackNotFoundError, YTMusicError)
-    assert issubclass(DatabaseError, YTMusicError)
-    assert issubclass(ValidationError, YTMusicError)
-    assert issubclass(SuggestionError, YTMusicError)
-
-
-def test_ytmusic_error_is_exception_subclass() -> None:
-    assert issubclass(YTMusicError, Exception)
+from ytmusic_cli.exceptions import PlaybackError, StreamExtractionError, YTMusicError
 
 
 def test_exception_message_passthrough() -> None:

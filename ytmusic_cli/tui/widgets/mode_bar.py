@@ -1,13 +1,21 @@
 """Top mode tabs and active profile name."""
 
-from collections.abc import Callable  # noqa: TC003
+from __future__ import annotations
 
-from textual.app import ComposeResult
+from typing import TYPE_CHECKING
+
 from textual.containers import Horizontal
+from textual.message import Message
 from textual.widgets import Static
 
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import User
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from textual.app import ComposeResult
+
+    from ytmusic_cli.music.types import User
 
 MODE_LABELS: tuple[tuple[str, str], ...] = (
     ("search", "Search"),
@@ -20,6 +28,11 @@ MODE_LABELS: tuple[tuple[str, str], ...] = (
 
 class ModeBar(Horizontal):
     """Mode tabs with the active profile on the right."""
+
+    class UserChanged(Message):
+        def __init__(self, user: User | None) -> None:
+            super().__init__()
+            self.user = user
 
     def __init__(
         self,
@@ -42,7 +55,7 @@ class ModeBar(Horizontal):
         state = AppState()
         self._unsub_user = state.current_user.subscribe(self._on_user)
         self.set_active(self._active)
-        self._on_user(state.current_user.get())
+        self.post_message(self.UserChanged(state.current_user.get()))
 
     def on_unmount(self) -> None:
         if self._unsub_user is not None:
@@ -58,7 +71,9 @@ class ModeBar(Horizontal):
             tab.set_class(tab_id == mode_id, "-active")
 
     def _on_user(self, user: User | None) -> None:
-        if not self.is_mounted:
-            return
-        name = user["username"] if user is not None else ""
+        if self.is_mounted:
+            self.post_message(self.UserChanged(user))
+
+    def on_mode_bar_user_changed(self, message: UserChanged) -> None:
+        name = message.user["username"] if message.user is not None else ""
         self.query_one("#mode_user", Static).update(name)

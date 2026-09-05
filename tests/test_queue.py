@@ -1,5 +1,6 @@
 """Queue behavior for PlaybackService and Queue mode."""
 
+import threading
 from typing import Literal
 from unittest.mock import MagicMock
 
@@ -9,7 +10,12 @@ from pytest_mock import MockerFixture
 from textual.pilot import Pilot
 from textual.widgets import Input, Label
 
-from ytmusic_cli.db.repositories import PlaylistRepository, UserRepository
+from tests.conftest import make_test_app
+from ytmusic_cli.db.repositories import (
+    PlaylistRepository,
+    SongRepository,
+    UserRepository,
+)
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.services import (
     AccountService,
@@ -18,7 +24,13 @@ from ytmusic_cli.music.services import (
     SearchService,
 )
 from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackStatus, PlaybackTickAction, Song, User
+from ytmusic_cli.music.types import (
+    PlaybackStatus,
+    PlaybackTickAction,
+    Playlist,
+    Song,
+    User,
+)
 from ytmusic_cli.tui.modals.add_to_playlist import AddToPlaylistModal
 from ytmusic_cli.tui.modals.confirm import ConfirmModal
 from ytmusic_cli.tui.modals.prompt import PromptModal
@@ -33,7 +45,7 @@ def _make_app(
     mock_player: MagicMock,
 ) -> tuple[YTMusicApp, AppState]:
     state = AppState()
-    app = YTMusicApp(
+    app = make_test_app(
         search_service=SearchService(mock_youtube),
         playback_service=PlaybackService(mock_player, mock_youtube, state),
     )
@@ -93,7 +105,9 @@ def test_play_song_seeds_empty_queue(
 ) -> None:
     state = AppState()
     service = PlaybackService(mock_player, mock_youtube, state)
-    service.play_song(sample_songs[0])
+    service.start_stream(
+        sample_songs[0], mock_youtube.get_stream(sample_songs[0]["video_id"])
+    )
     assert state.queue.get() == [sample_songs[0]]
     assert state.queue_index.get() == 0
 
@@ -114,7 +128,8 @@ def test_play_now_does_not_replace_existing_queue(
     }
     state.queue.set(sample_songs)
     state.queue_index.set(0)
-    service.play_song(extra)
+    stream = service.resolve_stream(extra)
+    service.start_stream(extra, stream)
     assert state.queue.get() == sample_songs
     assert state.current_song.get() == extra
 
@@ -126,9 +141,10 @@ def test_append_to_queue_plays_when_stopped(
 ) -> None:
     state = AppState()
     service = PlaybackService(mock_player, mock_youtube, state)
-    service.append_to_queue(sample_songs[0])
+    service.enqueue(sample_songs[0])
     assert state.queue.get()[-1] == sample_songs[0]
-    assert state.playback_state.get()["status"] == PlaybackStatus.PLAYING
+    assert state.playback_state.get()["status"] == PlaybackStatus.STOPPED
+    mock_player.play.assert_not_called()
 
 
 def test_play_next_advances_and_end_stops(
@@ -138,11 +154,16 @@ def test_play_next_advances_and_end_stops(
 ) -> None:
     state = AppState()
     service = PlaybackService(mock_player, mock_youtube, state)
-    service.play_queue(sample_songs, 0)
-    service.play_next()
+    first = service.set_queue(sample_songs, 0)
+    service.start_stream(first, service.resolve_stream(first))
+    nxt = service.advance_to_next()
+    if nxt is not None:
+        service.start_stream(nxt, service.resolve_stream(nxt))
     assert state.queue_index.get() == 1
     assert state.current_song.get() == sample_songs[1]
-    service.play_next()
+    nxt = service.advance_to_next()
+    if nxt is not None:
+        service.start_stream(nxt, service.resolve_stream(nxt))
     assert state.playback_state.get()["status"] == PlaybackStatus.STOPPED
     assert state.current_song.get() == sample_songs[1]
 
@@ -154,7 +175,8 @@ def test_sync_playback_signals_ended_without_starting_next(
 ) -> None:
     state = AppState()
     service = PlaybackService(mock_player, mock_youtube, state)
-    service.play_queue(sample_songs, 0)
+    first = service.set_queue(sample_songs, 0)
+    service.start_stream(first, service.resolve_stream(first))
     mock_youtube.get_stream.reset_mock()
     mock_player.has_ended.return_value = False
     mock_player.has_failed.return_value = False
@@ -219,8 +241,11 @@ def test_play_previous_moves_back(
 ) -> None:
     state = AppState()
     service = PlaybackService(mock_player, mock_youtube, state)
-    service.play_queue(sample_songs, 1)
-    service.play_previous()
+    first = service.set_queue(sample_songs, 1)
+    service.start_stream(first, service.resolve_stream(first))
+    prev = service.advance_to_previous()
+    assert prev is not None
+    service.start_stream(prev, service.resolve_stream(prev))
     assert state.queue_index.get() == 0
     assert state.current_song.get() == sample_songs[0]
 
@@ -234,7 +259,7 @@ async def test_search_a_appends_to_queue_and_queue_mode_lists_it(
     mock_youtube.search.return_value = sample_songs
     state = AppState()
 
-    app = YTMusicApp(
+    app = make_test_app(
         search_service=SearchService(mock_youtube),
         playback_service=PlaybackService(mock_player, mock_youtube, state),
     )
@@ -358,6 +383,59 @@ async def test_queue_enter_plays_highlighted_song(
 
 
 @pytest.mark.asyncio
+async def test_side_queue_enter_plays_highlighted_song(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+    mocker: MockerFixture,
+) -> None:
+    app, _state = _make_app(mock_youtube, mock_player)
+    play_song = mocker.patch.object(app, "play_song")
+
+    async with app.run_test(size=(120, 24)) as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs, queue_index=1)
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("1")
+        await pilot.pause()
+        pane = app.query_one("#queue_pane")
+        assert pane.display is True
+        side = app.query_one("#side_queue", QueueList)
+        side.activate_list()
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        play_song.assert_called_once_with(sample_songs[1])
+
+
+@pytest.mark.asyncio
+async def test_side_queue_d_removes_highlighted(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    app, state = _make_app(mock_youtube, mock_player)
+
+    async with app.run_test(size=(120, 24)) as pilot:
+        await pilot.pause()
+        await _seed_queue_and_open(pilot, app, sample_songs, queue_index=1)
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("1")
+        await pilot.pause()
+        side = app.query_one("#side_queue", QueueList)
+        side.activate_list()
+        await pilot.pause()
+        await pilot.press("d")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert state.queue.get() == [sample_songs[0]]
+
+
+@pytest.mark.asyncio
 async def test_queue_d_removes_highlighted_and_keeps_focus(
     mock_youtube: MagicMock,
     mock_player: MagicMock,
@@ -389,8 +467,8 @@ def _make_playlist_app(
     accounts = AccountService(UserRepository(), state)
     user = accounts.ensure_default_user()
     accounts.select_user(user["id"])
-    playlists = PlaylistService(PlaylistRepository())
-    app = YTMusicApp(
+    playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())
+    app = make_test_app(
         search_service=SearchService(mock_youtube),
         playback_service=PlaybackService(mock_player, mock_youtube, state),
         account_service=accounts,
@@ -415,8 +493,10 @@ async def test_queue_o_loads_playlist_without_playing(
         await pilot.pause()
         await pilot.press("o")
         await pilot.pause()
+        await pilot.pause()
         assert isinstance(app.screen, AddToPlaylistModal)
         await pilot.press("enter")
+        await pilot.pause()
         await pilot.pause()
 
         working = state.current_playlist.get()
@@ -426,6 +506,39 @@ async def test_queue_o_loads_playlist_without_playing(
         mock_player.play.assert_not_called()
         working_label = app.query_one("#queue_working", Label)
         assert "Late Night" in str(working_label.content)
+
+
+@pytest.mark.asyncio
+async def test_queue_o_lists_playlists_off_ui_thread(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+    mocker: MockerFixture,
+) -> None:
+    app, playlists, _state, user = _make_playlist_app(mock_youtube, mock_player)
+    playlists.create_playlist_from_songs(user["id"], "Late Night", sample_songs)
+    ui_thread = threading.get_ident()
+    list_ids: list[int] = []
+    original_list = playlists.list_playlists
+
+    def _list(user_id: int) -> list[Playlist]:
+        list_ids.append(threading.get_ident())
+        return original_list(user_id)
+
+    mocker.patch.object(playlists, "list_playlists", side_effect=_list)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("tab")
+        await pilot.pause()
+        await pilot.press("o")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert isinstance(app.screen, AddToPlaylistModal)
+        assert list_ids
+        assert list_ids[0] != ui_thread
 
 
 @pytest.mark.asyncio

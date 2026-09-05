@@ -5,13 +5,13 @@ from unittest.mock import MagicMock
 import pytest
 from textual.widgets import Input, Static
 
+from tests.conftest import make_test_app
 from ytmusic_cli.exceptions import StreamExtractionError
-from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.services import PlaybackService, SearchService
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import AudioStream, PlaybackStatus
 from ytmusic_cli.tui.widgets.now_playing import NowPlaying
-from ytmusic_cli.tui.widgets.song_table import SongTable
+from ytmusic_cli.tui.widgets.song_table import SongTable, VimListView
 
 
 @pytest.mark.asyncio
@@ -35,7 +35,7 @@ async def test_search_and_play_flow_updates_player_and_bar(
         source=mock_youtube,
         state=state,
     )
-    app = YTMusicApp(
+    app = make_test_app(
         search_service=search_service,
         playback_service=playback_service,
     )
@@ -54,7 +54,7 @@ async def test_search_and_play_flow_updates_player_and_bar(
         results_table = app.query_one("#results_table", SongTable)
         assert len(results_table._songs) > 0
 
-        results_table.query_one("ListView").index = 0
+        results_table.query_one(VimListView).index = 0
         await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()
@@ -64,8 +64,9 @@ async def test_search_and_play_flow_updates_player_and_bar(
         mock_player.set_volume.assert_called_with(80)
 
         assert state.playback_state.get()["status"] == PlaybackStatus.PLAYING
-        assert state.current_song.get() is not None
-        assert state.current_song.get()["title"] == "Sample Song 1"  # type: ignore[index]
+        current = state.current_song.get()
+        assert current is not None
+        assert current["title"] == "Sample Song 1"
 
         assert app.query_one("#now_playing", NowPlaying).is_mounted
         title_text = str(player_bar.query_one("#np_title", Static).content)
@@ -89,7 +90,7 @@ async def test_search_and_play_403_error_leaves_state_stopped_and_notifies_user(
         source=mock_youtube,
         state=state,
     )
-    app = YTMusicApp(
+    app = make_test_app(
         search_service=search_service,
         playback_service=playback_service,
     )
@@ -104,7 +105,7 @@ async def test_search_and_play_403_error_leaves_state_stopped_and_notifies_user(
         await pilot.pause()
 
         results_table = app.query_one("#results_table", SongTable)
-        results_table.query_one("ListView").index = 0
+        results_table.query_one(VimListView).index = 0
         await pilot.press("enter")
         await pilot.pause()
         await pilot.pause()

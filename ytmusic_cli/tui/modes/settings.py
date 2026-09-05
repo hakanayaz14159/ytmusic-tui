@@ -1,35 +1,31 @@
 """Settings mode: per-profile volume and search limit."""
 
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import ClassVar
 
+from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Vertical
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from ytmusic_cli.consts import MAX_SEARCH_LIMIT, MIN_SEARCH_LIMIT
+from ytmusic_cli.consts import (
+    DEFAULT_SEARCH_LIMIT,
+    DEFAULT_VOLUME,
+    MAX_SEARCH_LIMIT,
+    MAX_VOLUME,
+    MIN_SEARCH_LIMIT,
+)
 from ytmusic_cli.exceptions import YTMusicError
+from ytmusic_cli.music.types import UserSettings
+from ytmusic_cli.tui.app import ytmusic_app
 from ytmusic_cli.tui.widgets.select_list import SelectList
-
-if TYPE_CHECKING:
-    from ytmusic_cli.main import YTMusicApp
-    from ytmusic_cli.music.types import UserSettings
 
 _VOLUME_STEP = 5
 _LIMIT_STEP = 1
 
 
 class SettingsMode(Vertical):
-    DEFAULT_CSS = """
-    SettingsMode {
-        width: 1fr;
-        height: 1fr;
-        layout: vertical;
-        overflow: hidden hidden;
-    }
-    """
-
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("s", "save", "Save", show=False),
         Binding("left", "adjust_down", show=False),
@@ -48,32 +44,33 @@ class SettingsMode(Vertical):
     ) -> None:
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
         self._settings: UserSettings = {
-            "default_volume": 80,
-            "search_limit": 10,
+            "default_volume": DEFAULT_VOLUME,
+            "search_limit": DEFAULT_SEARCH_LIMIT,
         }
 
     def compose(self) -> ComposeResult:
         yield SelectList(id="settings_list")
 
     def reload(self) -> None:
-        app = cast("YTMusicApp", self.app)
-        if app.settings_service is not None:
-            self._settings = app.settings_service.get()
+        app = ytmusic_app(self.app)
+        self._settings = app.settings_service.get()
         self._refresh_options()
 
     def activate(self) -> None:
         self.query_one("#settings_list", SelectList).focus()
 
+    @work(thread=True, exclusive=True, group="settings")
     def action_save(self) -> None:
-        app = cast("YTMusicApp", self.app)
-        if app.settings_service is None:
-            self.notify("Settings are unavailable", severity="warning")
-            return
+        app = ytmusic_app(self.app)
         try:
-            self._settings = app.settings_service.save(self._settings)
+            saved = app.settings_service.save(self._settings)
         except YTMusicError as err:
-            self.notify(str(err), severity="error")
+            app.call_from_thread(self.notify, str(err), severity="error")
             return
+        app.call_from_thread(self._on_saved, saved)
+
+    def _on_saved(self, settings: UserSettings) -> None:
+        self._settings = settings
         self.notify("Settings saved", severity="information")
         self._refresh_options()
 
@@ -88,7 +85,7 @@ class SettingsMode(Vertical):
         index = option_list.highlighted
         if index == 0:
             volume = self._settings["default_volume"] + direction * _VOLUME_STEP
-            self._settings["default_volume"] = max(0, min(100, volume))
+            self._settings["default_volume"] = max(0, min(MAX_VOLUME, volume))
         elif index == 1:
             limit = self._settings["search_limit"] + direction * _LIMIT_STEP
             self._settings["search_limit"] = max(
@@ -116,5 +113,4 @@ class SettingsMode(Vertical):
                 id="limit",
             )
         )
-        if highlighted is not None:
-            option_list.highlighted = highlighted
+        option_list.highlighted = 0 if highlighted is None else highlighted

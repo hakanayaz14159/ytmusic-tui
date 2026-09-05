@@ -120,21 +120,21 @@ class VLCPlayer:
     def get_position(self) -> float:
         try:
             time_ms = self._player.get_time()
-            return max(0.0, time_ms / 1000.0)
+            return max(0.0, float(time_ms) / 1000.0)
         except Exception as err:
             logger.exception("get_position failed")
             raise PlaybackError("Failed to get playback position") from err
 
     def has_ended(self) -> bool:
         try:
-            return self._player.get_state() == vlc.State.Ended
+            return bool(self._player.get_state() == vlc.State.Ended)
         except Exception as err:
             logger.exception("has_ended failed")
             raise PlaybackError("Failed to query playback end state") from err
 
     def has_failed(self) -> bool:
         try:
-            return self._player.get_state() == vlc.State.Error
+            return bool(self._player.get_state() == vlc.State.Error)
         except Exception as err:
             logger.exception("has_failed failed")
             raise PlaybackError("Failed to query playback error state") from err

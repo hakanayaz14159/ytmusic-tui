@@ -176,6 +176,10 @@ SongTable ListView:focus {
     border: tall $accent;
 }
 
+SongTable ListView > ListItem.-playing {
+    color: $success;
+}
+
 SongTable ListView > ListItem.--highlight {
     background: $primary;
     color: $background;
@@ -258,5 +262,9 @@ PromptModal Input {
 }
 
 PromptModal Input:focus {
+    border: tall $accent;
+}
+
+AddToPlaylistModal OptionList:focus {
     border: tall $accent;
 }
