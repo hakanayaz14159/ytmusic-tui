@@ -49,7 +49,7 @@ class ModeBar(Horizontal):
     def compose(self) -> ComposeResult:
         for mode_id, label in MODE_LABELS:
             yield Static(label, id=f"tab_{mode_id}", classes="mode-tab")
-        yield Static("", id="mode_user")
+        yield Static("", id="mode_user", markup=False)
 
     def on_mount(self) -> None:
         state = AppState()

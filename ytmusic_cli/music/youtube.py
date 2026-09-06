@@ -1,8 +1,8 @@
 import json
 import logging
 import re
-from collections.abc import Mapping, Sequence
-from typing import Any
+from collections.abc import Iterable, Mapping, Sequence
+from typing import cast
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
@@ -44,12 +44,10 @@ def _duration_seconds(value: object) -> int:
         return 0
     if isinstance(value, int):
         return max(0, value)
-    if isinstance(value, float):
-        return max(0, int(value))
-    if isinstance(value, str):
+    if isinstance(value, float | str):
         try:
             return max(0, int(float(value)))
-        except ValueError:
+        except (ValueError, OverflowError):
             return 0
     return 0
 
@@ -85,6 +83,34 @@ def _parse_suggest_payload(payload: object, max_results: int) -> list[str]:
     return suggestions
 
 
+def _best_audio_stream(
+    formats: object, top_headers: dict[str, str]
+) -> AudioStream | None:
+    if not isinstance(formats, list):
+        return None
+    candidates: list[Mapping[str, object]] = []
+    # yt-dlp returns formats ranked from worst to best.
+    for value in reversed(formats):
+        if not isinstance(value, Mapping):
+            raise StreamExtractionError("Invalid stream format")
+        fmt = cast("Mapping[str, object]", value)
+        codec = _optional_string(fmt.get("acodec"))
+        if codec is not None and codec != "none" and fmt.get("url"):
+            candidates.append(fmt)
+    if not candidates:
+        return None
+    selected = next(
+        (fmt for fmt in candidates if fmt.get("vcodec") == "none"), candidates[0]
+    )
+    url = selected.get("url")
+    if not isinstance(url, str):
+        raise StreamExtractionError("Invalid stream URL")
+    return AudioStream(
+        url=url,
+        http_headers=top_headers | _http_headers(selected.get("http_headers")),
+    )
+
+
 def _log_stream(video_id: str, stream: AudioStream) -> None:
     logger.info(
         "get_stream video_id=%s url=%s headers=%s",
@@ -97,8 +123,8 @@ def _log_stream(video_id: str, stream: AudioStream) -> None:
 class Youtube:
     """YouTube adapter for search, query suggestions, and stream resolution."""
 
-    def __init__(self, options: dict[str, Any] | None = None) -> None:
-        self._base_options: dict[str, Any] = {
+    def __init__(self, options: Mapping[str, object] | None = None) -> None:
+        self._base_options: dict[str, object] = {
             "quiet": True,
             "no_warnings": True,
             "socket_timeout": 15,
@@ -113,7 +139,7 @@ class Youtube:
         self._search_cache: dict[str, list[Song]] = {}
         self._suggest_cache: dict[str, list[str]] = {}
 
-    def _options(self, **overrides: Any) -> dict[str, Any]:
+    def _options(self, **overrides: object) -> dict[str, object]:
         merged = dict(self._base_options)
         merged.update(overrides)
         return merged
@@ -128,14 +154,19 @@ class Youtube:
             search_query = f"ytsearch{max_results}:{query}"
 
             with YoutubeDL(self._options(extract_flat="in_playlist")) as ydl:
-                search_results = ydl.extract_info(search_query, download=False)
+                search_results: object = ydl.extract_info(search_query, download=False)
 
-                if not search_results or "entries" not in search_results:
+                if not isinstance(search_results, Mapping):
                     logger.info("search query=%r results=0", query)
                     return []
 
-                songs = []
-                for entry in search_results["entries"]:
+                entries: object = search_results.get("entries")
+                if not isinstance(entries, Iterable) or isinstance(
+                    entries, str | bytes | Mapping
+                ):
+                    return []
+                songs: list[Song] = []
+                for entry in entries:
                     if entry:
                         song = self._convert_entry_to_song(entry)
                         if song:
@@ -189,9 +220,9 @@ class Youtube:
             video_url = self._normalize_video_url(video_id)
 
             with YoutubeDL(self._options()) as ydl:
-                info = ydl.extract_info(video_url, download=False)
+                info: object = ydl.extract_info(video_url, download=False)
 
-                if not info:
+                if not isinstance(info, Mapping) or not info:
                     raise TrackNotFoundError(
                         f"Could not extract info for video: {video_id}"
                     )
@@ -208,26 +239,10 @@ class Youtube:
                     )
                     _log_stream(video_id, stream)
                     return stream
-                formats = info.get("formats")
-                if isinstance(formats, list):
-                    for fmt in formats:
-                        if not isinstance(fmt, dict):
-                            raise StreamExtractionError("Invalid stream format")
-                        if fmt.get("acodec") != "none" and fmt.get("url"):
-                            url = fmt.get("url")
-                            if not isinstance(url, str):
-                                raise StreamExtractionError("Invalid stream URL")
-                            headers = fmt.get("http_headers")
-                            stream = AudioStream(
-                                url=url,
-                                http_headers=(
-                                    _http_headers(headers)
-                                    if headers is not None
-                                    else top_headers
-                                ),
-                            )
-                            _log_stream(video_id, stream)
-                            return stream
+                fallback_stream = _best_audio_stream(info.get("formats"), top_headers)
+                if fallback_stream is not None:
+                    _log_stream(video_id, fallback_stream)
+                    return fallback_stream
 
                 raise TrackNotFoundError("No audio stream URL found")
 
@@ -248,7 +263,7 @@ class Youtube:
             return None
 
         title = _string_field(entry.get("title"), "Unknown Title")
-        uploader = entry.get("uploader", entry.get("channel", "Unknown Uploader"))
+        uploader = _optional_string(entry.get("uploader")) or entry.get("channel")
         artist = _string_field(uploader, "Unknown Uploader")
         album = _optional_string(entry.get("album")) or _optional_string(
             entry.get("playlist_title")

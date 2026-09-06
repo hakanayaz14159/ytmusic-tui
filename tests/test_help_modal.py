@@ -51,3 +51,15 @@ async def test_help_lists_suggestion_keys() -> None:
         assert "shift+tab" in lowered
         assert "=" in help_text
         assert "←" in help_text or "h" in lowered
+
+
+@pytest.mark.asyncio
+async def test_help_can_scroll_to_all_keys_on_small_terminal() -> None:
+    app = _app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        app.push_screen(HelpModal())
+        await pilot.pause()
+        panel = app.screen.query_one("#help_panel")
+        panel.scroll_end(animate=False)
+        await pilot.pause()
+        assert panel.scroll_y > 0

@@ -8,6 +8,7 @@ from textual.widget import Widget
 from textual.widgets import Label, ListView
 
 from ytmusic_cli.consts import COMPACT_HEIGHT_ROWS, WIDE_LAYOUT_COLUMNS
+from ytmusic_cli.music.state import AppState
 from ytmusic_cli.tui.app import ytmusic_app
 from ytmusic_cli.tui.modes.playlists import PlaylistsMode
 from ytmusic_cli.tui.modes.profiles import ProfilesMode
@@ -37,7 +38,7 @@ HINTS: dict[str, str] = {
         "enter play   d remove   j/k move   o open   n save   "
         "w write   A playlist   ? help"
     ),
-    "playlists": "enter play   n new   d delete   A add   ? help",
+    "playlists": "enter play   ←/→/h/l pane   n new   d delete   A add   ? help",
     "profiles": "enter select   n new   d delete   ? help",
     "settings": "j/k field   ←/→/h/l adjust   s save   ? help",
 }
@@ -114,13 +115,26 @@ class AppShell(Vertical):
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if not isinstance(event.item, SongRow):
             return
-        if not any(
-            isinstance(node, QueueList) for node in event.item.ancestors_with_self
-        ):
+        table = next(
+            (
+                node
+                for node in event.item.ancestors_with_self
+                if isinstance(node, QueueList)
+            ),
+            None,
+        )
+        if table is None:
             return
         app = ytmusic_app(self.app)
-        app.play_song(event.item.song)
+        index = table.selected_index()
+        if index is not None:
+            app.play_playlist(list(AppState().queue.get()), index)
         event.stop()
+
+    def reload_playlists_if_visible(self) -> None:
+        mode = self.query_one(PlaylistsMode)
+        if mode.display:
+            mode.reload()
 
     def on_song_table_delete_requested(
         self,

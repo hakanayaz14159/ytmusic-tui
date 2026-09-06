@@ -62,7 +62,8 @@ class SearchMode(Vertical):
         self._unsub_song: Callable[[], None] | None = None
         self._suggest_timer: Timer | None = None
         self._typed_query = ""
-        self._applying_suggestion = False
+        self._search_generation = 0
+        self._suggest_generation = 0
 
     def compose(self) -> ComposeResult:
         yield Input(
@@ -70,7 +71,7 @@ class SearchMode(Vertical):
             id="search_input",
         )
         yield SuggestionList(id="suggestion_list")
-        yield Label(_IDLE_STATUS, id="search_status")
+        yield Label(_IDLE_STATUS, id="search_status", markup=False)
         yield SongTable(id="results_table")
 
     def on_mount(self) -> None:
@@ -80,6 +81,8 @@ class SearchMode(Vertical):
 
     def on_unmount(self) -> None:
         self._cancel_suggest_timer()
+        self._search_generation += 1
+        self._suggest_generation += 1
         if self._unsub_song is not None:
             self._unsub_song()
             self._unsub_song = None
@@ -98,10 +101,15 @@ class SearchMode(Vertical):
         self.focus_query()
 
     def action_blur_search(self) -> None:
-        if self._suggestions_visible():
-            self._hide_suggestions()
+        suggestions_visible = self._suggestions_visible()
+        self._hide_suggestions()
+        if suggestions_visible:
             return
-        self.query_one("#results_table", SongTable).focus_list()
+        table = self.query_one("#results_table", SongTable)
+        if table.display and table.has_songs():
+            table.focus_list()
+        else:
+            self.screen.set_focus(None)
 
     def action_suggestion_down(self) -> None:
         if not self._can_navigate_suggestions():
@@ -122,14 +130,10 @@ class SearchMode(Vertical):
     def on_input_changed(self, event: Input.Changed) -> None:
         if event.input.id != "search_input":
             return
-        if self._applying_suggestion:
-            self._applying_suggestion = False
-            return
         self._typed_query = event.value
-        self._cancel_suggest_timer()
+        self._hide_suggestions()
         query = event.value.strip()
         if len(query) < MIN_SUGGEST_CHARS:
-            self._hide_suggestions()
             return
         self._suggest_timer = self.set_timer(
             SUGGEST_DEBOUNCE_SECONDS, self._request_suggestions
@@ -138,14 +142,15 @@ class SearchMode(Vertical):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "search_input":
             return
-        self._cancel_suggest_timer()
         self._hide_suggestions()
         query = event.value.strip()
         if not query:
             self.app.notify("Please enter a search query", severity="warning")
             return
         self._begin_search(query)
-        self._run_search(query)
+        user = self._state.current_user.get()
+        limit = user["search_limit"] if user is not None else DEFAULT_SEARCH_LIMIT
+        self._run_search(query, self._search_generation, limit)
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         if not isinstance(event.item, SongRow):
@@ -154,53 +159,68 @@ class SearchMode(Vertical):
         app.play_song(event.item.song)
 
     def _request_suggestions(self) -> None:
-        self._suggest_timer = None
+        self._cancel_suggest_timer()
         query = self._typed_query.strip()
         if len(query) < MIN_SUGGEST_CHARS:
             self._hide_suggestions()
             return
-        self._run_suggest(query)
+        self._suggest_generation += 1
+        self._run_suggest(query, self._suggest_generation)
 
     @work(thread=True, exclusive=True, group="suggest")
-    def _run_suggest(self, query: str) -> None:
+    def _run_suggest(self, query: str, generation: int) -> None:
         app = ytmusic_app(self.app)
         try:
             results = app.search_service.suggest(query)
         except YTMusicError as err:
             logger.exception("suggest failed query=%r", query)
-            app.call_from_thread(self._on_suggest_error, str(err) or "Suggest failed")
+            app.call_from_thread(
+                self._on_suggest_error, generation, str(err) or "Suggest failed"
+            )
             return
-        app.call_from_thread(self._on_suggest_success, query, results)
+        app.call_from_thread(self._on_suggest_success, generation, query, results)
 
     @work(thread=True, exclusive=True, group="search")
-    def _run_search(self, query: str) -> None:
+    def _run_search(self, query: str, generation: int, limit: int) -> None:
         app = ytmusic_app(self.app)
         service = app.search_service
-        limit = DEFAULT_SEARCH_LIMIT
-        user = self._state.current_user.get()
-        if user is not None:
-            limit = user["search_limit"]
         try:
             results = service.search(query, max_results=limit)
         except YTMusicError as err:
-            app.call_from_thread(self._on_search_error, str(err) or "Search failed")
+            app.call_from_thread(
+                self._on_search_error, generation, str(err) or "Search failed"
+            )
             return
-        app.call_from_thread(self._on_search_success, query, results)
+        app.call_from_thread(self._on_search_success, generation, query, results)
 
-    def _on_suggest_success(self, query: str, results: list[str]) -> None:
-        if query != self._typed_query.strip():
+    def _on_suggest_success(
+        self, generation: int, query: str, results: list[str]
+    ) -> None:
+        if (
+            not self.is_mounted
+            or generation != self._suggest_generation
+            or query != self._typed_query.strip()
+            or not self.query_one("#search_input", Input).has_focus
+        ):
             return
         self._suggestions().set_suggestions(results)
 
-    def _on_suggest_error(self, message: str) -> None:
+    def _on_suggest_error(self, generation: int, message: str) -> None:
+        if not self.is_mounted or generation != self._suggest_generation:
+            return
         self._hide_suggestions()
         self.notify(message, severity="warning")
 
     def _begin_search(self, query: str) -> None:
+        self._search_generation += 1
         self._set_status(f"Searching “{query}”…")
         self._set_table_visible(False)
 
-    def _on_search_success(self, query: str, results: list[Song]) -> None:
+    def _on_search_success(
+        self, generation: int, query: str, results: list[Song]
+    ) -> None:
+        if not self.is_mounted or generation != self._search_generation:
+            return
         table = self.query_one("#results_table", SongTable)
         song = self._state.current_song.get()
         table.set_playing_id(song["video_id"] if song is not None else None)
@@ -208,13 +228,17 @@ class SearchMode(Vertical):
         if results:
             self._set_status(f"{len(results)} results for “{query}”")
             self._set_table_visible(True)
-            table.focus_list()
+            search_input = self.query_one("#search_input", Input)
+            if search_input.has_focus and search_input.value.strip() == query:
+                table.focus_list()
             return
         self._set_status(f"No results for “{query}”.")
         self._set_table_visible(False)
         self.notify("No results", severity="information")
 
-    def _on_search_error(self, message: str) -> None:
+    def _on_search_error(self, generation: int, message: str) -> None:
+        if not self.is_mounted or generation != self._search_generation:
+            return
         table = self.query_one("#results_table", SongTable)
         self._set_status("Search failed.")
         self._set_table_visible(table.has_songs())
@@ -242,6 +266,8 @@ class SearchMode(Vertical):
         return self._suggestions().display
 
     def _hide_suggestions(self) -> None:
+        self._cancel_suggest_timer()
+        self._suggest_generation += 1
         self._suggestions().set_suggestions([])
 
     def _can_navigate_suggestions(self) -> bool:
@@ -251,9 +277,9 @@ class SearchMode(Vertical):
         return self._suggestions_visible()
 
     def _apply_input_value(self, text: str) -> None:
-        self._applying_suggestion = True
         search_input = self.query_one("#search_input", Input)
-        search_input.value = text
+        with search_input.prevent(Input.Changed):
+            search_input.value = text
         search_input.cursor_position = len(text)
 
     def _cancel_suggest_timer(self) -> None:

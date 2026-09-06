@@ -1,5 +1,6 @@
 """Playlist persistence and PlaylistService tests."""
 
+import asyncio
 import threading
 from unittest.mock import MagicMock
 
@@ -25,8 +26,11 @@ from ytmusic_cli.music.services import (
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import Playlist, Song, User
 from ytmusic_cli.tui.modals.add_to_playlist import AddToPlaylistModal
+from ytmusic_cli.tui.modals.confirm import ConfirmModal
+from ytmusic_cli.tui.modes.playlists import PlaylistsMode
 from ytmusic_cli.tui.shell import AppShell
-from ytmusic_cli.tui.widgets.song_table import SongTable
+from ytmusic_cli.tui.widgets.select_list import SelectList
+from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable, VimListView
 
 SAMPLE_SONG: Song = {
     "video_id": "vid1",
@@ -101,6 +105,114 @@ def test_add_duplicate_song_raises(
     playlists.add_song(playlist["id"], SAMPLE_SONG)
     with pytest.raises(ValidationError, match="already"):
         playlists.add_song(playlist["id"], SAMPLE_SONG)
+
+
+def test_rejected_duplicate_preserves_saved_song_metadata(
+    playlist_setup: tuple[AccountService, PlaylistService],
+) -> None:
+    accounts, playlists = playlist_setup
+    user = accounts.create_user("hzf")
+    playlist = playlists.create_playlist_from_songs(user["id"], "Favs", [SONG_A])
+
+    with pytest.raises(ValidationError, match="already"):
+        playlists.add_song(playlist["id"], {**SONG_A, "title": "Changed"})
+
+    assert playlists.get_playlist(playlist["id"])["songs"] == [SONG_A]
+
+
+def test_deleted_playlist_does_not_leave_song_memberships(
+    playlist_setup: tuple[AccountService, PlaylistService],
+) -> None:
+    accounts, playlists = playlist_setup
+    user = accounts.create_user("hzf")
+    deleted = playlists.create_playlist_from_songs(user["id"], "Old", [SONG_A])
+
+    playlists.delete_playlist(deleted["id"])
+    created = playlists.create_playlist(user["id"], "New")
+
+    assert created["songs"] == []
+    assert SongRepository().get_by_video_id(SONG_A["video_id"]) == SONG_A
+
+
+def test_replace_songs_rolls_back_on_persistence_failure(
+    test_db: SqliteDatabase,
+    mocker: MockerFixture,
+) -> None:
+    user = UserRepository().create_user("hzf")
+    songs = SongRepository()
+    repo = PlaylistRepository(songs)
+    playlist = repo.create(user["id"], "Favs")
+    repo.add_song(playlist["id"], SONG_A)
+    repo.add_song(playlist["id"], SONG_B)
+    upsert = songs.upsert
+
+    def fail_second_song(song: Song) -> Song:
+        if song["video_id"] == SONG_C["video_id"]:
+            raise DatabaseError("Cannot persist song")
+        return upsert(song)
+
+    mocker.patch.object(songs, "upsert", side_effect=fail_second_song)
+
+    with pytest.raises(DatabaseError, match="Cannot persist"):
+        repo.replace_songs(playlist["id"], [{**SONG_B, "title": "Changed"}, SONG_C])
+
+    assert repo.get(playlist["id"]) == {**playlist, "songs": [SONG_A, SONG_B]}
+
+
+def test_working_playlist_tracks_follow_persisted_edits(
+    playlist_setup: tuple[AccountService, PlaylistService],
+) -> None:
+    accounts, playlists = playlist_setup
+    user = accounts.create_user("hzf")
+    playlist = playlists.create_playlist_from_songs(user["id"], "Favs", [SONG_A])
+    playlists.adopt_working_playlist(playlist)
+
+    playlists.add_song(playlist["id"], SONG_B)
+    assert AppState().current_playlist.get() == {**playlist, "songs": [SONG_A, SONG_B]}
+
+    playlists.remove_song(playlist["id"], SONG_A["video_id"])
+    assert AppState().current_playlist.get() == {**playlist, "songs": [SONG_B]}
+
+    playlists.replace_songs(playlist["id"], [SONG_C])
+    assert AppState().current_playlist.get() == {**playlist, "songs": [SONG_C]}
+
+
+def test_working_playlist_refresh_does_not_restore_previous_profile(
+    playlist_setup: tuple[AccountService, PlaylistService],
+    mocker: MockerFixture,
+) -> None:
+    accounts, playlists = playlist_setup
+    first = accounts.create_user("first")
+    second = accounts.create_user("second")
+    accounts.select_user(first["id"])
+    working = playlists.create_playlist_from_songs(first["id"], "Original", [SONG_A])
+    playlists.adopt_working_playlist(working)
+    get_playlist = playlists.get_playlist
+
+    def load_after_profile_switch(playlist_id: int) -> Playlist:
+        accounts.select_user(second["id"])
+        return get_playlist(playlist_id)
+
+    mocker.patch.object(
+        playlists, "get_playlist", side_effect=load_after_profile_switch
+    )
+    playlists.add_song(working["id"], SONG_B)
+
+    assert AppState().current_user.get() == second
+    assert AppState().current_playlist.get() is None
+
+
+def test_deleting_working_playlist_clears_selection(
+    playlist_setup: tuple[AccountService, PlaylistService],
+) -> None:
+    accounts, playlists = playlist_setup
+    user = accounts.create_user("hzf")
+    playlist = playlists.create_playlist_from_songs(user["id"], "Favs", [SONG_A])
+    playlists.adopt_working_playlist(playlist)
+
+    playlists.delete_playlist(playlist["id"])
+
+    assert AppState().current_playlist.get() is None
 
 
 def test_remove_song_and_delete_playlist(
@@ -295,6 +407,24 @@ def test_load_playlist_play_skips_duplicate_set_queue(
     assert songs[0]["video_id"] == "a"
 
 
+def test_loading_empty_playlist_does_not_replace_playback_queue(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app, playlists, state, user = _app_with_playlists(mock_youtube, mock_player)
+    app.playback_service.load_queue([SONG_A])
+    empty = playlists.create_playlist(user["id"], "Empty")
+    notify = mocker.patch.object(app, "notify")
+
+    app._on_playlist_loaded(empty, False, 0)
+
+    assert state.queue.get() == [SONG_A]
+    assert state.current_playlist.get() is None
+    notify.assert_called_once()
+
+
 def _app_with_playlists(
     mock_youtube: MagicMock,
     mock_player: MagicMock,
@@ -336,6 +466,265 @@ async def test_playlists_enter_sets_working_playlist(
         assert working is not None
         assert working["name"] == "Study"
         assert state.queue.get()[0]["video_id"] == "a"
+
+
+@pytest.mark.asyncio
+async def test_playlists_reload_preserves_selected_playlist(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> None:
+    app, playlists, _state, user = _app_with_playlists(mock_youtube, mock_player)
+    playlists.create_playlist_from_songs(user["id"], "First", [SONG_A])
+    second = playlists.create_playlist_from_songs(user["id"], "Second", [SONG_B])
+
+    async with app.run_test() as pilot:
+        app.query_one(AppShell).switch_mode("playlists")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        app.query_one("#playlist_list", SelectList).highlighted = 1
+        await pilot.pause()
+
+        app.query_one(PlaylistsMode).reload()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        mode = app.query_one(PlaylistsMode)
+        assert mode._current_playlist() == second
+        assert mode.query_one("#playlist_list", SelectList).highlighted == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("forward", "back"), [("right", "left"), ("l", "h")])
+async def test_playlist_tracks_are_reachable_with_keyboard(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+    *,
+    forward: str,
+    back: str,
+) -> None:
+    app, playlists, _state, user = _app_with_playlists(mock_youtube, mock_player)
+    playlist = playlists.create_playlist_from_songs(
+        user["id"], "Study", [SONG_A, SONG_B]
+    )
+    play = mocker.patch.object(app, "load_playlist_into_queue")
+
+    async with app.run_test() as pilot:
+        app.query_one(AppShell).switch_mode("playlists")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        await pilot.press(forward)
+
+        tracks = app.query_one("#playlist_tracks", SongTable)
+        assert tracks.query_one(VimListView).has_focus
+        await pilot.press("j", "enter")
+        play.assert_called_once_with(playlist["id"], play=True, start_index=1)
+
+        await pilot.press(back)
+        assert app.query_one("#playlist_list", SelectList).has_focus
+
+
+@pytest.mark.asyncio
+async def test_playlist_delete_confirms_original_selection(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> None:
+    app, playlists, _state, user = _app_with_playlists(mock_youtube, mock_player)
+    playlists.create_playlist(user["id"], "First")
+    second = playlists.create_playlist(user["id"], "Second")
+
+    async with app.run_test() as pilot:
+        app.query_one(AppShell).switch_mode("playlists")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        mode = app.query_one(PlaylistsMode)
+        mode.action_delete_focused()
+        await pilot.pause()
+        mode.query_one("#playlist_list", SelectList).highlighted = 1
+        await pilot.pause()
+        assert isinstance(app.screen, ConfirmModal)
+        app.screen.action_accept()
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+
+        assert playlists.list_playlists(user["id"]) == [second]
+
+
+@pytest.mark.asyncio
+async def test_playlist_reload_failure_notifies_without_crashing(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app, playlists, _state, _user = _app_with_playlists(mock_youtube, mock_player)
+    mocker.patch.object(
+        playlists,
+        "list_playlists",
+        side_effect=DatabaseError("Cannot load playlists"),
+    )
+
+    async with app.run_test() as pilot:
+        mode = app.query_one(PlaylistsMode)
+        notify = mocker.patch.object(mode, "notify")
+        app.query_one(AppShell).switch_mode("playlists")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        notify.assert_called_once_with("Cannot load playlists", severity="error")
+
+
+@pytest.mark.asyncio
+async def test_playlist_load_completion_preserves_new_profile(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app, playlists, state, user = _app_with_playlists(mock_youtube, mock_player)
+    original = playlists.create_playlist_from_songs(user["id"], "Old", [SONG_A])
+    second = app.account_service.create_user("second")
+    current = playlists.create_playlist_from_songs(second["id"], "New", [SONG_B])
+    app.playback_service.load_queue([SONG_C])
+    started = asyncio.Event()
+    release = threading.Event()
+    get_playlist = playlists.get_playlist
+
+    def delayed_load(playlist_id: int) -> Playlist:
+        loaded = get_playlist(playlist_id)
+        app.call_from_thread(started.set)
+        assert release.wait(timeout=2)
+        return loaded
+
+    mocker.patch.object(playlists, "get_playlist", side_effect=delayed_load)
+
+    async with app.run_test() as pilot:
+        try:
+            app.load_playlist_into_queue(original["id"], play=False)
+            await asyncio.wait_for(started.wait(), timeout=2)
+            app.account_service.select_user(second["id"])
+            playlists.adopt_working_playlist(current)
+        finally:
+            release.set()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert state.current_user.get() == second
+        assert state.current_playlist.get() == current
+        assert state.queue.get() == [SONG_C]
+
+
+@pytest.mark.asyncio
+async def test_playlist_save_completion_preserves_new_profile(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app, playlists, state, user = _app_with_playlists(mock_youtube, mock_player)
+    second = app.account_service.create_user("second")
+    current = playlists.create_playlist_from_songs(second["id"], "New", [SONG_B])
+    app.playback_service.load_queue([SONG_A])
+    started = asyncio.Event()
+    release = threading.Event()
+    create_playlist = playlists.create_playlist_from_songs
+
+    def delayed_save(user_id: int, name: str, songs: list[Song]) -> Playlist:
+        created = create_playlist(user_id, name, songs)
+        app.call_from_thread(started.set)
+        assert release.wait(timeout=2)
+        return created
+
+    mocker.patch.object(
+        playlists, "create_playlist_from_songs", side_effect=delayed_save
+    )
+
+    async with app.run_test() as pilot:
+        try:
+            app.save_queue_as_playlist("Saved")
+            await asyncio.wait_for(started.wait(), timeout=2)
+            app.account_service.select_user(second["id"])
+            playlists.adopt_working_playlist(current)
+        finally:
+            release.set()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert state.current_user.get() == second
+        assert state.current_playlist.get() == current
+        saved = playlists.list_playlists(user["id"])
+        assert len(saved) == 1
+        assert saved[0]["name"] == "Saved"
+        assert saved[0]["songs"] == [SONG_A]
+
+
+@pytest.mark.asyncio
+async def test_playlist_reload_ignores_stale_profile_results(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app, playlists, state, user = _app_with_playlists(mock_youtube, mock_player)
+    playlists.create_playlist_from_songs(user["id"], "Old", [SONG_A])
+    second = app.account_service.create_user("second")
+    playlists.create_playlist_from_songs(second["id"], "New", [SONG_B])
+    started = asyncio.Event()
+    release = threading.Event()
+    list_playlists = playlists.list_playlists
+
+    def delayed_list(user_id: int) -> list[Playlist]:
+        loaded = list_playlists(user_id)
+        app.call_from_thread(started.set)
+        assert release.wait(timeout=2)
+        return loaded
+
+    mocker.patch.object(playlists, "list_playlists", side_effect=delayed_list)
+
+    async with app.run_test() as pilot:
+        mode = app.query_one(PlaylistsMode)
+        try:
+            app.query_one(AppShell).switch_mode("playlists")
+            await asyncio.wait_for(started.wait(), timeout=2)
+            app.account_service.select_user(second["id"])
+        finally:
+            release.set()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert state.current_user.get() == second
+        assert [playlist["name"] for playlist in mode._playlists] != ["Old"]
+
+
+@pytest.mark.asyncio
+async def test_adding_song_refreshes_visible_playlist_tracks(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> None:
+    app, playlists, _state, user = _app_with_playlists(mock_youtube, mock_player)
+    playlist = playlists.create_playlist_from_songs(user["id"], "Study", [SONG_A])
+
+    async with app.run_test() as pilot:
+        app.query_one(AppShell).switch_mode("playlists")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        app.add_song_to_playlist(SONG_B)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        assert isinstance(app.screen, AddToPlaylistModal)
+
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert playlists.get_playlist(playlist["id"])["songs"] == [SONG_A, SONG_B]
+        tracks = app.query_one("#playlist_tracks", SongTable)
+        assert [row.song for row in tracks.query(SongRow)] == [SONG_A, SONG_B]
 
 
 @pytest.mark.asyncio

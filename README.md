@@ -2,7 +2,7 @@
 
 A modern, audio-only Terminal User Interface (TUI) music player for YouTube, built with Python, [Textual](https://github.com/Textualize/textual), and [yt-dlp](https://github.com/yt-dlp/yt-dlp).
 
-YTMusic CLI allows you to stream audio directly from YouTube without video overhead, manage multiple profiles, organize playlists, search tracks, and download audio locally for offline listening—all within a rich terminal interface.
+YTMusic CLI lets you stream audio from YouTube, manage local profiles, organize playlists, and search tracks within a terminal interface.
 
 ---
 
@@ -12,11 +12,13 @@ YTMusic CLI allows you to stream audio directly from YouTube without video overh
 - **Interactive TUI**: Built on modern Textual with intuitive navigation, dark theme, and visual playback controls.
 - **Profile Management**: Support for multiple user profiles with independent preferences and playlists.
 - **Custom Playlists**: Create, edit, and organize custom playlists backed by a local SQLite database.
-- **Search & Discovery**: Fast keyword search for songs, albums, and artists.
-- **Offline Downloads**: Download audio tracks locally with embedded metadata for offline playback.
+- **Search & Discovery**: Keyword search with autocomplete suggestions.
+- **Playback Queue**: Play, append, skip, and remove tracks; open and save playlists from the queue.
 - **Test-Driven Architecture**: Designed from the ground up with strict separation of concerns, comprehensive test coverage, and isolated in-memory test databases.
 
 ---
+
+Offline downloads and local-file playback are not implemented. Profiles store local preferences and playlists; they do not sign in to YouTube accounts or sync a YouTube Music library.
 
 ## Requirements
 
@@ -88,6 +90,8 @@ uv run ytmusic-cli --help
 | `+` / `=` / `-` | Volume up / down                                   |
 | `>` / `<`       | Next / previous in queue                           |
 | `j` / `k`       | Move in lists                                      |
+| `Right` / `l`   | Focus playlist tracks; increase selected setting   |
+| `Left` / `h`    | Return to playlist list; decrease selected setting |
 | `Enter`         | Play the highlighted track                         |
 | `a`             | Append highlighted track to the queue              |
 | `A`             | Add highlighted or now-playing track to a playlist |
@@ -115,7 +119,8 @@ ytmusic_cli/
 │   └── song.py     # Track metadata persistence
 ├── music/          # Domain & infrastructure services
 │   ├── types.py    # Domain models and TypedDicts
-│   ├── youtube.py  # yt-dlp adapter for search, extraction, and downloads
+│   ├── youtube.py  # yt-dlp adapter for search and stream extraction
+│   ├── stream_proxy.py # Local HTTP bridge for stream request headers
 │   └── state.py    # Reactive application state
 ├── tui/            # Presentation layer (Textual shell, modes, widgets)
 │   ├── shell.py    # Persistent chrome: modes, now-playing, status
@@ -161,6 +166,8 @@ make format
 make dev
 # or: uv run textual run --dev ytmusic_cli/main.py
 ```
+
+The default suite runs offline with mocked YouTube/audio adapters and in-memory SQLite databases. Live YouTube contract checks are opt-in and require network access. See the [feature reliability review](docs/feature-reliability-review.md) for this audit's fixes and verification limits.
 
 ---
 

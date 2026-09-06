@@ -2,11 +2,12 @@
 
 from collections.abc import Generator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from threading import Thread
+from threading import Event, Thread, get_ident
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import pytest
+from pytest_mock import MockerFixture
 
 from ytmusic_cli.music.stream_proxy import AudioStreamProxy
 from ytmusic_cli.music.types import AudioStream
@@ -131,10 +132,21 @@ def test_proxy_forwards_range_header(origin: Origin) -> None:
     assert origin.requests[-1].get("Range") == "bytes=0-1023"
 
 
-def test_proxy_stop_closes_port(origin: Origin) -> None:
+def test_proxy_stop_closes_port(origin: Origin, mocker: MockerFixture) -> None:
     proxy = AudioStreamProxy()
     local_url = proxy.start(_stream(origin.url))
+    server = proxy._server
+    assert server is not None
+    closed = Event()
+    original_close = server.server_close
+
+    def close() -> None:
+        original_close()
+        closed.set()
+
+    mocker.patch.object(server, "server_close", side_effect=close)
     proxy.stop()
+    assert closed.wait(2)
     with pytest.raises((URLError, OSError, ConnectionError)):
         urlopen(local_url, timeout=1)
 
@@ -146,3 +158,40 @@ def test_proxy_binds_localhost(origin: Origin) -> None:
         assert local_url.startswith("http://127.0.0.1:")
     finally:
         proxy.stop()
+
+
+def test_proxy_shutdown_runs_off_the_calling_thread(mocker: MockerFixture) -> None:
+    proxy = AudioStreamProxy()
+    proxy.start(_stream("https://stream.example/audio"))
+    server = proxy._server
+    assert server is not None
+    caller_thread = get_ident()
+    shutdown_threads: list[int] = []
+    entered = Event()
+    release = Event()
+    closed = Event()
+    original_shutdown = server.shutdown
+    original_close = server.server_close
+
+    def shutdown() -> None:
+        shutdown_threads.append(get_ident())
+        entered.set()
+        release.wait(2)
+        original_shutdown()
+
+    def close() -> None:
+        original_close()
+        closed.set()
+
+    mocker.patch.object(server, "shutdown", side_effect=shutdown)
+    mocker.patch.object(server, "server_close", side_effect=close)
+    try:
+        proxy.stop()
+
+        assert entered.wait(2)
+        assert shutdown_threads != [caller_thread]
+        assert proxy._server is None
+        assert proxy._thread is None
+    finally:
+        release.set()
+        assert closed.wait(2)

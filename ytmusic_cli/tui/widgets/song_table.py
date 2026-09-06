@@ -20,7 +20,7 @@ class SongRow(ListItem):
     """List item that carries the associated Song domain object."""
 
     def __init__(self, song: Song, *, playing: bool = False) -> None:
-        super().__init__(Label(format_song_line(song, playing=playing)))
+        super().__init__(Label(format_song_line(song, playing=playing), markup=False))
         self.song = song
         self.set_class(playing, "-playing")
 

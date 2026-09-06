@@ -40,6 +40,7 @@ class AddToPlaylistModal(ModalScreen[int | None]):
                         for item in self._playlists
                     ],
                     id="playlist_picker",
+                    markup=False,
                 )
 
     def on_mount(self) -> None:

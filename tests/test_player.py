@@ -1,6 +1,7 @@
 """Tests for VLCPlayer audio adapter (mocked VLC, no hardware)."""
 
 from pathlib import Path
+from threading import Event
 from unittest.mock import MagicMock
 from urllib.error import URLError
 from urllib.request import urlopen
@@ -97,7 +98,7 @@ def test_play_uses_proxy_url_not_cdn(mock_vlc: MagicMock) -> None:
         player.stop()
 
 
-def test_stop_tears_down_proxy(mock_vlc: MagicMock) -> None:
+def test_stop_tears_down_proxy(mock_vlc: MagicMock, mocker: MockerFixture) -> None:
     player = VLCPlayer()
     stream: AudioStream = {
         "url": "https://stream.example.com/audio.m4a",
@@ -107,7 +108,18 @@ def test_stop_tears_down_proxy(mock_vlc: MagicMock) -> None:
     local_url = player._instance.media_new.call_args[0][0]
     assert isinstance(local_url, str)
     assert local_url.startswith("http://127.0.0.1:")
+    server = player._proxy._server
+    assert server is not None
+    closed = Event()
+    original_close = server.server_close
+
+    def close() -> None:
+        original_close()
+        closed.set()
+
+    mocker.patch.object(server, "server_close", side_effect=close)
     player.stop()
+    assert closed.wait(2)
     mock_vlc.stop.assert_called_once()
     with pytest.raises((URLError, OSError, ConnectionError)):
         urlopen(local_url, timeout=1)

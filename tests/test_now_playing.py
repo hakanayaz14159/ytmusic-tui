@@ -4,16 +4,35 @@ import threading
 
 import pytest
 from textual.app import App, ComposeResult
+from textual.widget import Widget
 from textual.widgets import Static
 
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import PlaybackStatus, Song
+from ytmusic_cli.tui.modes.queue import QueueMode
+from ytmusic_cli.tui.widgets.mode_bar import ModeBar
 from ytmusic_cli.tui.widgets.now_playing import NowPlaying
+from ytmusic_cli.tui.widgets.select_list import SelectList
 
 
 class NowPlayingApp(App[None]):
     def compose(self) -> ComposeResult:
         yield NowPlaying(id="now_playing")
+
+
+class MetadataWidgetsApp(App[None]):
+    CSS = """
+    NowPlaying { height: 3; }
+    ModeBar { height: 1; }
+    QueueMode { height: 4; }
+    SelectList { height: 3; }
+    """
+
+    def compose(self) -> ComposeResult:
+        yield NowPlaying()
+        yield ModeBar()
+        yield QueueMode()
+        yield SelectList("[b]Mix[/b]", id="metadata_options", markup=False)
 
 
 def _bar_text(app: App[None]) -> str:
@@ -175,3 +194,42 @@ async def test_now_playing_uses_unknown_uploader_when_artist_missing() -> None:
         text = _bar_text(app)
         assert "Unknown Uploader" in text
         assert "Unknown Artist" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("selector", "expected"),
+    [
+        ("#np_title", "[b]Track[/b]"),
+        ("#np_title", "[b]Uploader[/b]"),
+        ("#mode_user", "[b]User[/b]"),
+        ("#queue_working", "[b]Mix[/b]"),
+        ("#metadata_options", "[b]Mix[/b]"),
+    ],
+)
+async def test_metadata_widgets_render_names_as_literal_text(
+    selector: str, expected: str
+) -> None:
+    state = AppState()
+    state.current_song.set(
+        Song(
+            video_id="track",
+            title="[b]Track[/b]",
+            artist="[b]Uploader[/b]",
+            album=None,
+            duration=120,
+        )
+    )
+    state.current_user.set(
+        {"id": 1, "username": "[b]User[/b]", "default_volume": 80, "search_limit": 10}
+    )
+    state.current_playlist.set({"id": 1, "name": "[b]Mix[/b]", "songs": []})
+    app = MetadataWidgetsApp()
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        widget = app.query_one(selector, Widget)
+        rendered = "".join(
+            widget.render_line(y).text for y in range(widget.size.height)
+        )
+
+        assert expected in rendered

@@ -15,7 +15,9 @@ class SuggestionList(OptionList):
         classes: str | None = None,
         disabled: bool = False,
     ) -> None:
-        super().__init__(name=name, id=id, classes=classes, disabled=disabled)
+        super().__init__(
+            name=name, id=id, classes=classes, disabled=disabled, markup=False
+        )
         self._queries: list[str] = []
         self.display = False
 

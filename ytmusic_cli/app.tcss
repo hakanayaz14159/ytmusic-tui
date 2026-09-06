@@ -240,6 +240,10 @@ HelpModal #help_panel {
     padding: 1 2;
 }
 
+HelpModal #help_panel:focus {
+    border: solid $accent;
+}
+
 PromptModal,
 ConfirmModal,
 AddToPlaylistModal {

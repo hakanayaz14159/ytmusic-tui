@@ -55,8 +55,8 @@ class NowPlaying(Vertical):
         self._unsub_playback: Callable[[], None] | None = None
 
     def compose(self) -> ComposeResult:
-        yield Static("■  [No track playing]", id="np_title")
-        yield Static("", id="np_detail")
+        yield Static("■  [No track playing]", id="np_title", markup=False)
+        yield Static("", id="np_detail", markup=False)
 
     def on_mount(self) -> None:
         self._unsub_song = self._app_state.current_song.subscribe(self._on_song)

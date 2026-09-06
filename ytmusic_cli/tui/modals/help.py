@@ -4,7 +4,7 @@ from typing import ClassVar
 
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Vertical
+from textual.containers import VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static
 
@@ -28,6 +28,7 @@ o            Open playlist into queue
 w            Write queue over working playlist
 s            Save settings
 ← →  h l     Adjust settings
+← →  h l     Switch playlist pane
 Esc          Blur search / close dialog
 q            Quit (or close this help)
 Ctrl+q       Quit
@@ -44,5 +45,5 @@ class HelpModal(ModalScreen[None]):
     ]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="help_panel"):
+        with VerticalScroll(id="help_panel"):
             yield Static(_HELP_TEXT)

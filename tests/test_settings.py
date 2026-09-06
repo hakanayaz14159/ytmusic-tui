@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from peewee import SqliteDatabase
+from pytest_mock import MockerFixture
 
 from tests.conftest import make_test_app
 from ytmusic_cli.consts import WIDE_LAYOUT_COLUMNS
@@ -11,6 +12,7 @@ from ytmusic_cli.db.repositories import UserRepository
 from ytmusic_cli.exceptions import ValidationError
 from ytmusic_cli.music.services import AccountService, SettingsService
 from ytmusic_cli.music.state import AppState
+from ytmusic_cli.music.types import User, UserSettings
 from ytmusic_cli.tui.modes.settings import SettingsMode
 from ytmusic_cli.tui.shell import AppShell
 
@@ -39,6 +41,34 @@ def test_settings_reject_out_of_range(test_db: SqliteDatabase) -> None:
         settings.save({"default_volume": 200, "search_limit": 10})
     with pytest.raises(ValidationError, match="Search limit"):
         settings.save({"default_volume": 50, "search_limit": 1})
+
+
+def test_settings_save_does_not_reselect_profile_after_switch(
+    test_db: SqliteDatabase,
+    mocker: MockerFixture,
+) -> None:
+    state = AppState()
+    users = UserRepository()
+    accounts = AccountService(users, state)
+    settings = SettingsService(users, state)
+    first = accounts.create_user("first")
+    second = accounts.create_user("second")
+    accounts.select_user(first["id"])
+    update_settings = users.update_settings
+
+    def update_and_switch(user_id: int, changes: UserSettings) -> User:
+        updated = update_settings(user_id, changes)
+        accounts.select_user(second["id"])
+        return updated
+
+    mocker.patch.object(users, "update_settings", side_effect=update_and_switch)
+
+    settings.save({"default_volume": 40, "search_limit": 15})
+
+    assert state.current_user.get() == second
+    saved = users.get_user(first["id"])
+    assert saved is not None
+    assert saved["default_volume"] == 40
 
 
 @pytest.mark.asyncio

@@ -4,17 +4,24 @@ import threading
 from unittest.mock import MagicMock
 
 import pytest
-from peewee import SqliteDatabase
+from peewee import OperationalError, SqliteDatabase
 from pytest_mock import MockerFixture
 from textual.widgets import Input
 
 from tests.conftest import make_test_app
 from ytmusic_cli.consts import DEFAULT_USERNAME
-from ytmusic_cli.db.repositories import UserRepository
+from ytmusic_cli.db.repositories import (
+    PlaylistRepository,
+    SongRepository,
+    UserRepository,
+)
+from ytmusic_cli.db.user import User as DbUser
 from ytmusic_cli.exceptions import DatabaseError, ValidationError
 from ytmusic_cli.music.services import AccountService
 from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import User
+from ytmusic_cli.tui.modals.confirm import ConfirmModal
+from ytmusic_cli.tui.modes.profiles import ProfilesMode
 from ytmusic_cli.tui.shell import AppShell
 from ytmusic_cli.tui.widgets.select_list import SelectList
 
@@ -64,6 +71,34 @@ def test_delete_profile_selects_remaining(
     current = AppState().current_user.get()
     assert current is not None
     assert current["id"] == second["id"]
+
+
+def test_deleting_profile_removes_owned_playlists(
+    account_service: AccountService,
+) -> None:
+    deleted = account_service.create_user("old")
+    account_service.create_user("keep")
+    playlists = PlaylistRepository(SongRepository())
+    playlist = playlists.create(deleted["id"], "Old favorites")
+
+    account_service.delete_user(deleted["id"])
+
+    assert playlists.get(playlist["id"]) is None
+
+
+def test_switching_profile_clears_working_playlist(
+    account_service: AccountService,
+) -> None:
+    first = account_service.create_user("one")
+    second = account_service.create_user("two")
+    account_service.select_user(first["id"])
+    playlists = PlaylistRepository(SongRepository())
+    playlist = playlists.create(first["id"], "One's favorites")
+    AppState().current_playlist.set(playlist)
+
+    account_service.select_user(second["id"])
+
+    assert AppState().current_playlist.get() is None
 
 
 def test_empty_username_rejected(account_service: AccountService) -> None:
@@ -135,6 +170,32 @@ async def test_profiles_n_creates_and_d_deletes(
         await pilot.pause()
         remaining = {user["username"] for user in service.list_users()}
         assert "second" not in remaining or "keep" in remaining
+
+
+@pytest.mark.asyncio
+async def test_profile_delete_confirms_original_selection(
+    test_db: SqliteDatabase,
+) -> None:
+    service = AccountService(UserRepository(), AppState())
+    first = service.create_user("first")
+    second = service.create_user("second")
+    service.select_user(first["id"])
+    app = make_test_app(account_service=service)
+
+    async with app.run_test() as pilot:
+        app.query_one(AppShell).switch_mode("profiles")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        mode = app.query_one(ProfilesMode)
+        mode.action_delete_profile()
+        await pilot.pause()
+        mode.query_one("#profile_list", SelectList).highlighted = 1
+        assert isinstance(app.screen, ConfirmModal)
+        app.screen.action_accept()
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+
+        assert service.list_users() == [second]
 
 
 @pytest.mark.asyncio
@@ -225,3 +286,38 @@ def test_update_settings_missing_user_raises(test_db: SqliteDatabase) -> None:
             999,
             {"default_volume": 40, "search_limit": 10},
         )
+
+
+def test_repository_wraps_database_failure(
+    test_db: SqliteDatabase,
+    mocker: MockerFixture,
+) -> None:
+    error = OperationalError("database is locked")
+    mocker.patch.object(DbUser, "select", side_effect=error)
+
+    with pytest.raises(DatabaseError, match="database is locked") as raised:
+        UserRepository().list_users()
+
+    assert raised.value.__cause__ is error
+
+
+@pytest.mark.asyncio
+async def test_profile_reload_failure_notifies_without_crashing(
+    account_service: AccountService,
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch.object(
+        account_service,
+        "list_users",
+        side_effect=DatabaseError("Cannot load profiles"),
+    )
+    app = make_test_app(account_service=account_service)
+
+    async with app.run_test() as pilot:
+        mode = app.query_one(ProfilesMode)
+        notify = mocker.patch.object(mode, "notify")
+        app.query_one(AppShell).switch_mode("profiles")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        notify.assert_called_once_with("Cannot load profiles", severity="error")

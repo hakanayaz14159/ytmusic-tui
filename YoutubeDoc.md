@@ -1,101 +1,45 @@
-# YouTube & Audio Architecture Documentation
+# YouTube and audio architecture
 
-## Overview
+This document describes the implemented player. Offline downloads, local-file playback, seeking, metadata embedding, and YouTube account synchronization are future work.
 
-This document specifies the audio extraction, streaming, and playback architecture for the YTMusic CLI music player. The application interacts with YouTube exclusively as an audio streaming and metadata source (no video playback or rendering).
+## Implemented capabilities
 
----
+- Keyword search through yt-dlp, converted to typed `Song` values.
+- Query suggestions through the YouTube suggestion endpoint.
+- Audio stream resolution with the request headers required by the CDN.
+- VLC playback, pause/resume, volume, position reporting, and queue progression.
+- Local SQLite profiles and ordered playlists. Saved playlists contain unique video IDs; the playback queue can contain repeated tracks.
 
-## Core Operations
+## Search and stream resolution
 
-The YouTube integration layer (`ytmusic_cli.music.youtube.Youtube`) provides 5 core capabilities:
+`SearchService` validates queries and delegates to `MusicSourceProtocol`. The `Youtube` adapter owns yt-dlp options, metadata validation, and in-memory search/suggestion caches. These caches are dictionaries; there is no LRU eviction or persistent metadata cache.
 
-1. **Search**: Query YouTube videos and convert results into standard `Song` domain entities.
-2. **Audio Stream Extraction**: Obtain direct audio stream URLs (e.g. m4a/opus) for real-time playback.
-3. **Metadata Extraction**: Fetch detailed track information including title, artist/uploader, duration, view count, and album/playlist details.
-4. **Local Audio Download**: Download audio-only tracks to local disk with embedded metadata (ID3/tags) for offline playback.
-5. **Live Stream Detection**: Detect live broadcast status and extract HLS/DASH audio manifests.
+The adapter pins yt-dlp's android player client. yt-dlp's default android-sdkless URLs 403 on `Range: bytes=0-`, which VLC always sends. Callers may still supply explicit options. The format selector prefers audio streams. When yt-dlp returns a format list instead of a selected URL, the adapter prefers the highest-ranked audio-only format and combines inherited headers with format-specific headers.
 
----
+Network requests run in Textual thread workers. Search request generations prevent a late result or error from replacing a newer search. Submission, Escape, and query changes invalidate pending suggestions.
 
-## Component Architecture
+## Playback path
 
-```
-+-------------------------------------------------------------+
-|                      Presentation Layer                     |
-|                 Textual TUI (App & Widgets)                 |
-+------------------------------+------------------------------+
-                               |
-                               v
-+-------------------------------------------------------------+
-|                      Application Layer                      |
-|       SearchService | PlaybackService | DownloadService     |
-+---------------+------------------------------+--------------+
-                |                              |
-                v                              v
-+-------------------------------+ +---------------------------+
-|      YouTube Adapter Layer    | |    Audio Playback Engine  |
-| (yt-dlp Python API Wrapper)   | |        (python-vlc)       |
-+-------------------------------+ +---------------------------+
-                |                              |
-                v                              v
-+-------------------------------+ +---------------------------+
-|    YouTube Audio Streams /    | |   System Audio Output /   |
-|         Local Storage         | |       libvlc Driver       |
-+-------------------------------+ +---------------------------+
-```
+1. A selection starts a playback request with a generation identifier.
+2. A worker resolves the stream through `PlaybackService.resolve_stream`.
+3. Under the app's player lock, `prepare_stream` starts the engine and applies volume without publishing playback state.
+4. The UI commits the song and playback state only if the request is still current. Obsolete prepared streams are stopped.
+5. A periodic playback tick updates position, detects failures, and advances the queue. It does not advance while another track is loading.
 
----
+`VLCPlayer` sends VLC to a localhost HTTP proxy. The proxy forwards stream headers and byte ranges to the upstream URL, supporting headers that VLC cannot reliably supply itself. Proxy shutdown runs on a cleanup thread so stopping or replacing a track does not wait for the HTTP server polling interval on the UI thread.
 
-## Technical Specifications
+The app stops playback when it exits. Adapter errors are wrapped in domain errors and surfaced as notifications. Stream-resolution failure preserves existing playback; failed engine startup clears the stale playing state.
 
-### 1. Audio Stream Extraction
+## Persistence
 
-- **Format Selection**: Configured to extract audio-only streams using `bestaudio/best`.
-- **Bitrate / Codec**: Prefers high-bitrate AAC/m4a or Opus streams for minimal bandwidth and optimal sound fidelity.
-- **Direct Streaming**: yt-dlp resolves CDN direct stream URLs, which are passed directly to `python-vlc` for low-latency playback without intermediate buffering files.
+Repository adapters convert Peewee rows into domain types. Playlist replacement and recursive deletion use transactions. Deleting a playlist or profile also deletes its membership rows; failed replacement preserves the original playlist. Duplicate additions are rejected before modifying stored song metadata.
 
-### 2. Audio Playback Engine (`python-vlc`)
+Profile changes clear the working playlist. In-flight load/save completions check the initiating profile before changing the visible queue or working selection. Confirmations retain the target shown when the dialog opened.
 
-- Utilizes `python-vlc` binding to the host system's `libvlc`.
-- Supports direct streaming of HTTP/HTTPS audio URLs as well as local media files (`file://`).
-- Provides asynchronous playback control: play, pause, resume, seek, stop, and volume normalization.
-- Handles audio events (end of track, buffer underflow, error states) to trigger automated track progression in playlists.
+## Verification
 
-### 3. Local Audio Download
+The default pytest suite uses mocked YouTube and audio adapters, in-memory SQLite, and Textual's headless pilot. Thread events coordinate concurrency regressions without hard sleeps.
 
-- Triggered by user request to download songs or entire playlists.
-- Utilizes yt-dlp's audio extraction pipeline:
-  ```python
-  download_options = {
-      'format': 'bestaudio/best',
-      'extractaudio': True,
-      'audioformat': 'mp3',  # or m4a/flac based on profile preferences
-      'audioquality': '192K',
-      'outtmpl': 'downloads/%(artist)s - %(title)s.%(ext)s',
-  }
-  ```
-- Saved audio tracks are indexed in the local SQLite database (`Song.local_path`) for immediate offline playback.
+The optional `network` tests check live YouTube behavior and are excluded from the default run. Passing offline tests does not establish current CDN availability or working audio on a particular machine; those depend on YouTube, installed libVLC, and the host audio device.
 
-### 4. Caching & Rate Limiting
-
-- **Search Cache**: In-memory LRU cache of search queries to avoid repeated YouTube searches for identical strings.
-- **Metadata Cache**: In-memory cache of video metadata keyed by YouTube video ID.
-- **Throttling**: Configurable request sleep intervals (`sleep_interval=1`) to prevent IP rate-limiting from YouTube endpoints.
-
----
-
-## Test-Driven Design (TDD) Testing Strategy
-
-To adhere to strict TDD and ensure fast, deterministic tests without network dependencies:
-
-1. **Unit Tests with `mock_youtube`**:
-   - The test suite provides a `mock_youtube` fixture in `tests/conftest.py` returning structured `Song` dictionaries and dummy stream URLs.
-   - Any service or widget interacting with YouTube must be testable using this mock without issuing real network requests.
-
-2. **Playback Tests with `mock_player`**:
-   - Audio playback is decoupled from system audio hardware using `mock_player`.
-   - Tests assert player state transitions (idle -> playing -> paused -> stopped) without producing sound or requiring an active sound server (PulseAudio/PipeWire/ALSA).
-
-3. **End-to-End Smoke Verification**:
-   - Live integration tests against real YouTube endpoints can be run selectively via `test_youtube.py` with explicit opt-in.
+See [the feature reliability review](docs/feature-reliability-review.md) for acceptance criteria and audit results.

@@ -50,7 +50,7 @@ class QueueMode(Vertical):
         self._unsub_working: Callable[[], None] | None = None
 
     def compose(self) -> ComposeResult:
-        yield Label("", id="queue_working")
+        yield Label("", id="queue_working", markup=False)
         yield Label(
             "Queue is empty. Press a on a search result to add tracks.",
             id="queue_empty",

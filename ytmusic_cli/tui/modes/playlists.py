@@ -1,5 +1,6 @@
 """Playlists mode: local lists for the active profile."""
 
+from functools import partial
 from typing import ClassVar
 
 from textual import work
@@ -23,6 +24,8 @@ class PlaylistsMode(Horizontal):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("n", "new_playlist", "New", show=False),
         Binding("d", "delete_focused", "Delete", show=False),
+        Binding("right,l", "focus_tracks", "Tracks", show=False),
+        Binding("left,h", "focus_playlists", "Playlists", show=False),
     ]
 
     def __init__(
@@ -36,32 +39,67 @@ class PlaylistsMode(Horizontal):
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
         self._playlists: list[Playlist] = []
         self._selected_id: int | None = None
+        self._load_generation = 0
 
     def compose(self) -> ComposeResult:
         with Vertical(id="playlist_nav"):
-            yield SelectList(id="playlist_list")
+            yield SelectList(id="playlist_list", markup=False)
             yield Label(
                 "No playlists. Press n to create one.",
                 id="playlists_empty",
             )
         yield SongTable(id="playlist_tracks", allow_delete=True, allow_append=True)
 
+    def on_unmount(self) -> None:
+        self._load_generation += 1
+
     @work(thread=True, exclusive=True, group="playlists")
     def reload(self) -> None:
+        self._load_generation += 1
+        generation = self._load_generation
         app = ytmusic_app(self.app)
         user = AppState().current_user.get()
+        user_id = user["id"] if user is not None else None
         if user is None:
-            app.call_from_thread(self._apply_playlists, [])
+            app.call_from_thread(self._apply_playlists, generation, user_id, [])
             return
-        playlists = app.playlist_service.list_playlists(user["id"])
-        app.call_from_thread(self._apply_playlists, playlists)
+        try:
+            playlists = app.playlist_service.list_playlists(user["id"])
+        except YTMusicError as err:
+            app.call_from_thread(self._on_reload_error, generation, user_id, str(err))
+            return
+        app.call_from_thread(self._apply_playlists, generation, user_id, playlists)
 
-    def _apply_playlists(self, playlists: list[Playlist]) -> None:
+    def _is_current_load(self, generation: int, user_id: int | None) -> bool:
+        if not self.is_mounted or generation != self._load_generation:
+            return False
+        current = AppState().current_user.get()
+        current_id = current["id"] if current is not None else None
+        return current_id == user_id
+
+    def _on_reload_error(
+        self, generation: int, user_id: int | None, message: str
+    ) -> None:
+        if not self._is_current_load(generation, user_id):
+            return
+        self.notify(message, severity="error")
+
+    def _apply_playlists(
+        self, generation: int, user_id: int | None, playlists: list[Playlist]
+    ) -> None:
+        if not self._is_current_load(generation, user_id):
+            return
         self._playlists = playlists
         self._render_lists()
 
     def activate(self) -> None:
+        self.action_focus_playlists()
+
+    def action_focus_playlists(self) -> None:
         self.query_one("#playlist_list", SelectList).focus()
+
+    def action_focus_tracks(self) -> None:
+        self.query_one("#playlist_tracks", SongTable).focus_list()
 
     def action_new_playlist(self) -> None:
         self.app.push_screen(PromptModal("New playlist", "Name"), self._on_new_name)
@@ -74,7 +112,7 @@ class PlaylistsMode(Horizontal):
                 return
             self.app.push_screen(
                 ConfirmModal(f"Delete playlist “{playlist['name']}”?"),
-                self._on_confirm_delete_playlist,
+                partial(self._on_confirm_delete_playlist, playlist),
             )
 
     def on_option_list_option_highlighted(
@@ -129,11 +167,12 @@ class PlaylistsMode(Horizontal):
             return
         self._create_playlist(user["id"], name)
 
-    def _on_confirm_delete_playlist(self, confirmed: bool | None) -> None:
+    def _on_confirm_delete_playlist(
+        self,
+        playlist: Playlist,
+        confirmed: bool | None,
+    ) -> None:
         if not confirmed:
-            return
-        playlist = self._current_playlist()
-        if playlist is None:
             return
         self._delete_playlist(playlist)
 

@@ -133,6 +133,15 @@ class AudioStreamProxy:
         if server is None:
             return
         logger.info("proxy stop")
+        Thread(
+            target=self._close_server,
+            args=(server, thread),
+            daemon=True,
+            name="audio-stream-proxy-cleanup",
+        ).start()
+
+    @staticmethod
+    def _close_server(server: ThreadingHTTPServer, thread: Thread | None) -> None:
         server.shutdown()
         server.server_close()
         if thread is not None:

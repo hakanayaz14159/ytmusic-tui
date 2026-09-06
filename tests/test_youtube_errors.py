@@ -1,6 +1,5 @@
 """Tests for domain exception hygiene in the YouTube adapter."""
 
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -155,7 +154,7 @@ def test_normalize_video_url_extracts_from_embed_path(
 
 
 def test_convert_entry_to_song(youtube_no_init: Youtube) -> None:
-    entry: dict[str, Any] = {
+    entry: dict[str, object] = {
         "id": "abc12345678",
         "title": "Test Track",
         "uploader": "Test Artist",
@@ -197,7 +196,7 @@ def test_get_stream_rejects_non_string_headers(
 def test_convert_entry_to_song_defaults_missing_uploader_to_unknown_uploader(
     youtube_no_init: Youtube,
 ) -> None:
-    entry: dict[str, Any] = {
+    entry: dict[str, object] = {
         "id": "noidcredit1",
         "title": "No Credit",
         "duration": 90,
@@ -210,7 +209,7 @@ def test_convert_entry_to_song_defaults_missing_uploader_to_unknown_uploader(
 def test_convert_entry_to_song_treats_none_duration_as_zero(
     youtube_no_init: Youtube,
 ) -> None:
-    entry: dict[str, Any] = {
+    entry: dict[str, object] = {
         "id": "livestream01",
         "title": "Lofi Radio",
         "uploader": "Chill",
@@ -240,7 +239,7 @@ def test_search_uses_extract_flat_in_playlist(
     assert called_opts["extract_flat"] == "in_playlist"
 
 
-def test_get_stream_uses_android_player_client(
+def test_get_stream_pins_android_player_client(
     youtube_no_init: Youtube,
     mocker: MockerFixture,
 ) -> None:
@@ -259,4 +258,85 @@ def test_get_stream_uses_android_player_client(
     youtube_no_init.get_stream("dQw4w9WgXcQ")
 
     called_opts = patched.call_args[0][0]
-    assert called_opts["extractor_args"]["youtube"]["player_client"] == ["android"]
+    extractor_args = called_opts["extractor_args"]
+    assert isinstance(extractor_args, dict)
+    youtube_args = extractor_args["youtube"]
+    assert isinstance(youtube_args, dict)
+    assert youtube_args["player_client"] == ["android"]
+
+
+def test_get_stream_prefers_best_audio_only_format_and_merges_headers(
+    youtube_no_init: Youtube,
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {
+        "http_headers": {
+            "User-Agent": "default-agent",
+            "Referer": "https://www.youtube.com/",
+        },
+        "formats": [
+            {"acodec": "opus", "vcodec": "none", "url": "https://audio/low"},
+            {
+                "acodec": "opus",
+                "vcodec": "none",
+                "url": "https://audio/high",
+                "http_headers": {"User-Agent": "format-agent"},
+            },
+            {"acodec": "aac", "vcodec": "avc1", "url": "https://video/high"},
+        ],
+    }
+    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+
+    stream = youtube_no_init.get_stream("dQw4w9WgXcQ")
+
+    assert stream == {
+        "url": "https://audio/high",
+        "http_headers": {
+            "User-Agent": "format-agent",
+            "Referer": "https://www.youtube.com/",
+        },
+    }
+
+
+def test_get_stream_skips_formats_without_an_audio_codec(
+    youtube_no_init: Youtube,
+    mocker: MockerFixture,
+) -> None:
+    mock_ydl = MagicMock()
+    mock_ydl.__enter__.return_value = mock_ydl
+    mock_ydl.extract_info.return_value = {
+        "formats": [
+            {"url": "https://storyboard/image"},
+            {"acodec": "none", "url": "https://video/silent"},
+        ]
+    }
+    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+
+    with pytest.raises(TrackNotFoundError, match="No audio stream"):
+        youtube_no_init.get_stream("dQw4w9WgXcQ")
+
+
+@pytest.mark.parametrize("duration", [float("nan"), float("inf"), "inf", "NaN"])
+def test_convert_entry_to_song_defaults_nonfinite_duration_to_zero(
+    youtube_no_init: Youtube,
+    duration: object,
+) -> None:
+    song = youtube_no_init._convert_entry_to_song(
+        {"id": "live", "title": "Live Radio", "duration": duration}
+    )
+
+    assert song is not None
+    assert song["duration"] == 0
+
+
+def test_convert_entry_to_song_falls_back_to_channel_for_null_uploader(
+    youtube_no_init: Youtube,
+) -> None:
+    song = youtube_no_init._convert_entry_to_song(
+        {"id": "track", "uploader": None, "channel": "Channel name"}
+    )
+
+    assert song is not None
+    assert song["artist"] == "Channel name"

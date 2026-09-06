@@ -379,7 +379,7 @@ async def test_queue_enter_plays_highlighted_song(
         await pilot.press("enter")
         await pilot.pause()
 
-        play_song.assert_called_once_with(sample_songs[1])
+        play_song.assert_called_once_with(sample_songs[1], queue_index=1)
 
 
 @pytest.mark.asyncio
@@ -407,7 +407,7 @@ async def test_side_queue_enter_plays_highlighted_song(
         await pilot.press("enter")
         await pilot.pause()
 
-        play_song.assert_called_once_with(sample_songs[1])
+        play_song.assert_called_once_with(sample_songs[1], queue_index=1)
 
 
 @pytest.mark.asyncio

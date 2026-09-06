@@ -49,7 +49,7 @@ class SettingsMode(Vertical):
         }
 
     def compose(self) -> ComposeResult:
-        yield SelectList(id="settings_list")
+        yield SelectList(id="settings_list", markup=False)
 
     def reload(self) -> None:
         app = ytmusic_app(self.app)

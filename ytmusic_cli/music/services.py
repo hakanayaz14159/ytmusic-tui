@@ -13,7 +13,7 @@ from ytmusic_cli.consts import (
     MIN_SUGGEST_CHARS,
     PLAYBACK_STALL_TICKS,
 )
-from ytmusic_cli.exceptions import ValidationError
+from ytmusic_cli.exceptions import PlaybackError, ValidationError
 from ytmusic_cli.music.ports import (
     AudioPlayerProtocol,
     MusicSourceProtocol,
@@ -62,8 +62,8 @@ class SearchService:
 class PlaybackService:
     """Orchestrates stream resolution, player control, queue, and AppState.
 
-    Workers may call ``resolve_stream`` only. All ``AppState`` writes happen on
-    the main thread via queue helpers and ``start_stream``.
+    Workers resolve and prepare streams; the main thread commits their state.
+    Callers serialize engine preparation and discard stale prepared streams.
     """
 
     def __init__(
@@ -87,15 +87,34 @@ class PlaybackService:
         return self._source.get_stream(song["video_id"])
 
     def start_stream(self, song: Song, stream: AudioStream) -> None:
+        self.prepare_stream(stream)
+        self.commit_stream(song)
+
+    def prepare_stream(self, stream: AudioStream) -> None:
+        """Start the audio engine from a worker without publishing UI state."""
+        try:
+            self._player.play(stream)
+            self._player.set_volume(self._state.playback_state.get()["volume"])
+        except PlaybackError:
+            try:
+                self.discard_stream()
+            except PlaybackError:
+                logger.exception("failed to clean up an unsuccessful stream")
+            raise
+
+    def discard_stream(self) -> None:
+        """Stop a prepared engine stream without publishing UI state."""
+        self._player.stop()
+
+    def commit_stream(self, song: Song) -> None:
+        """Publish a successfully prepared stream on the UI thread."""
         logger.info(
             "start_stream video_id=%s title=%s",
             song["video_id"],
             song["title"],
         )
         self._align_queue_for_play(song)
-        self._player.play(stream)
         current = self._state.playback_state.get()
-        self._player.set_volume(current["volume"])
         self._stall_ticks = 0
         self._engine_started = False
         self._state.current_song.set(song)
@@ -149,7 +168,8 @@ class PlaybackService:
             )
             return queue[next_index]
         logger.info("advance_to_next exhausted")
-        if self._state.playback_state.get()["status"] == PlaybackStatus.PLAYING:
+        if self._state.playback_state.get()["status"] != PlaybackStatus.STOPPED:
+            self.discard_stream()
             self._patch_playback(status=PlaybackStatus.STOPPED)
         return None
 
@@ -173,6 +193,15 @@ class PlaybackService:
             logger.warning("remove_from_queue rejected index=%s", index)
             raise ValidationError("Queue index out of range")
         current = self._state.queue_index.get()
+        current_song = self._state.current_song.get()
+        removing_current = (
+            index == current
+            and current_song is not None
+            and queue[index]["video_id"] == current_song["video_id"]
+        )
+        was_playing = (
+            self._state.playback_state.get()["status"] == PlaybackStatus.PLAYING
+        )
         logger.info(
             "remove_from_queue index=%s video_id=%s",
             index,
@@ -180,6 +209,8 @@ class PlaybackService:
         )
         del queue[index]
         self._state.queue.set(queue)
+        if removing_current:
+            self.stop()
         if not queue:
             self._state.queue_index.set(-1)
             return None
@@ -189,7 +220,7 @@ class PlaybackService:
         if index == current:
             new_index = min(index, len(queue) - 1)
             self._state.queue_index.set(new_index)
-            if self._state.playback_state.get()["status"] == PlaybackStatus.PLAYING:
+            if removing_current and was_playing:
                 return queue[new_index]
         return None
 
@@ -207,7 +238,13 @@ class PlaybackService:
 
     def stop(self) -> None:
         logger.info("stop")
-        self._player.stop()
+        self.discard_stream()
+        self.commit_stop()
+
+    def commit_stop(self) -> None:
+        """Publish an engine stop on the UI thread without touching the player."""
+        self._stall_ticks = 0
+        self._engine_started = False
         self._state.current_song.set(None)
         self._patch_playback(
             status=PlaybackStatus.STOPPED,
@@ -262,6 +299,7 @@ class PlaybackService:
             return self._fail_playback("Playback failed to start")
         if self._has_next_track():
             return PlaybackTick(PlaybackTickAction.ENDED)
+        self.discard_stream()
         self._patch_playback(status=PlaybackStatus.STOPPED)
         return PlaybackTick(PlaybackTickAction.IDLE)
 
@@ -295,6 +333,12 @@ class PlaybackService:
         if not queue:
             self._state.queue.set([song])
             self._state.queue_index.set(0)
+            return
+        current_index = self._state.queue_index.get()
+        if (
+            0 <= current_index < len(queue)
+            and queue[current_index]["video_id"] == song["video_id"]
+        ):
             return
         for index, item in enumerate(queue):
             if item["video_id"] == song["video_id"]:
@@ -367,6 +411,9 @@ class AccountService:
             logger.warning("profile select missing id=%s", user_id)
             raise ValidationError("Profile not found")
         logger.info("profile selected id=%s username=%s", user["id"], user["username"])
+        current = self._state.current_user.get()
+        if current is None or current["id"] != user_id:
+            self._state.current_playlist.set(None)
         self._state.current_user.set(user)
         playback = self._state.playback_state.get()
         if playback["status"] == PlaybackStatus.STOPPED:
@@ -440,7 +487,11 @@ class PlaylistService:
 
     def replace_songs(self, playlist_id: int, songs: list[Song]) -> Playlist:
         logger.info("playlist replace id=%s count=%s", playlist_id, len(songs))
-        return self._playlists.replace_songs(playlist_id, songs)
+        playlist = self._playlists.replace_songs(playlist_id, songs)
+        current = self._state.current_playlist.get()
+        if current is not None and current["id"] == playlist_id:
+            self._state.current_playlist.set(playlist)
+        return playlist
 
     def add_song(self, playlist_id: int, song: Song) -> None:
         logger.info(
@@ -449,14 +500,26 @@ class PlaylistService:
             song["video_id"],
         )
         self._playlists.add_song(playlist_id, song)
+        self._refresh_working_playlist(playlist_id)
 
     def remove_song(self, playlist_id: int, video_id: str) -> None:
         logger.info("playlist remove id=%s video_id=%s", playlist_id, video_id)
         self._playlists.remove_song(playlist_id, video_id)
+        self._refresh_working_playlist(playlist_id)
 
     def delete_playlist(self, playlist_id: int) -> None:
         logger.info("playlist deleted id=%s", playlist_id)
         self._playlists.delete(playlist_id)
+        current = self._state.current_playlist.get()
+        if current is not None and current["id"] == playlist_id:
+            self._state.current_playlist.set(None)
+
+    def _refresh_working_playlist(self, playlist_id: int) -> None:
+        current = self._state.current_playlist.get()
+        if current is not None and current["id"] == playlist_id:
+            refreshed = self.get_playlist(playlist_id)
+            if self._state.current_playlist.get() is current:
+                self._state.current_playlist.set(refreshed)
 
 
 class SettingsService:
@@ -502,7 +565,9 @@ class SettingsService:
             user["id"],
             {"default_volume": volume, "search_limit": limit},
         )
-        self._state.current_user.set(updated)
+        current = self._state.current_user.get()
+        if current is not None and current["id"] == updated["id"]:
+            self._state.current_user.set(updated)
         logger.info(
             "settings saved volume=%s search_limit=%s",
             updated["default_volume"],

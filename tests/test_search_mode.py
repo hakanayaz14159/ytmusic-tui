@@ -4,12 +4,13 @@ import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pytest_mock import MockerFixture
 from textual.pilot import Pilot
 from textual.widgets import Input, Label
 
 from tests.conftest import make_test_app
 from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT
-from ytmusic_cli.exceptions import SuggestionError
+from ytmusic_cli.exceptions import StreamExtractionError, SuggestionError
 from ytmusic_cli.main import YTMusicApp
 from ytmusic_cli.music.types import Song
 from ytmusic_cli.tui.format import format_song_line
@@ -427,3 +428,206 @@ async def test_suggest_failure_hides_list_and_notifies(
             n.severity == "warning" and "suggest down" in n.message.lower()
             for n in notifications
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("old_fails", [False, True])
+async def test_superseded_search_cannot_replace_latest_results(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+    old_fails: bool,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def search(query: str, max_results: int = 10) -> list[Song]:
+        if query == "old":
+            started.set()
+            if not release.wait(timeout=5):
+                raise AssertionError("old search was not released")
+            if old_fails:
+                raise StreamExtractionError("Old search failed")
+            return SAMPLE_SONGS[:1]
+        return SAMPLE_SONGS[1:]
+
+    mock_search_service.search.side_effect = search
+    app = _make_app(mock_search_service, mock_playback_service)
+    async with app.run_test() as pilot:
+        mode = app.query_one(SearchMode)
+        callback = mocker.spy(
+            mode, "_on_search_error" if old_fails else "_on_search_success"
+        )
+        search_input = app.query_one("#search_input", Input)
+        try:
+            search_input.value = "old"
+            await pilot.press("enter")
+            for _ in range(20):
+                if started.is_set():
+                    break
+                await pilot.pause()
+            assert started.is_set()
+
+            search_input.value = "latest"
+            await pilot.press("enter")
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+            table = app.query_one("#results_table", SongTable)
+            assert table._songs == SAMPLE_SONGS[1:]
+
+            before = callback.call_count
+            release.set()
+            for _ in range(20):
+                if callback.call_count > before:
+                    break
+                await pilot.pause()
+            assert callback.call_count > before
+            assert table._songs == SAMPLE_SONGS[1:]
+            assert "1 results for “latest”" in str(
+                app.query_one("#search_status", Label).content
+            )
+            assert not any(
+                "Old search failed" in notification.message
+                for notification in app._notifications
+            )
+        finally:
+            release.set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("dismiss_key", ["enter", "escape"])
+async def test_late_suggestions_stay_hidden_after_dismissal(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+    dismiss_key: str,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def suggest(query: str, max_results: int = DEFAULT_SUGGEST_LIMIT) -> list[str]:
+        started.set()
+        if not release.wait(timeout=5):
+            raise AssertionError("suggest was not released")
+        return SAMPLE_SUGGESTIONS
+
+    mock_search_service.suggest.side_effect = suggest
+    app = _make_app(mock_search_service, mock_playback_service)
+    async with app.run_test() as pilot:
+        mode = app.query_one(SearchMode)
+        callback = mocker.spy(mode, "_on_suggest_success")
+        try:
+            app.query_one("#search_input", Input).value = "beat"
+            for _ in range(20):
+                if started.is_set():
+                    break
+                await pilot.pause()
+            assert started.is_set()
+
+            await pilot.press(dismiss_key)
+            release.set()
+            for _ in range(20):
+                if callback.called:
+                    break
+                await pilot.pause()
+            assert callback.called
+            assert app.query_one("#suggestion_list", SuggestionList).display is False
+        finally:
+            release.set()
+
+
+@pytest.mark.asyncio
+async def test_typing_after_repeated_suggestion_boundary_updates_query(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    mock_search_service.suggest.return_value = ["beatles"]
+    app = _make_app(mock_search_service, mock_playback_service)
+    async with app.run_test() as pilot:
+        await _load_suggestions(pilot, app)
+        await pilot.press("down", "down", "x")
+        await pilot.pause()
+
+        assert app.query_one("#search_input", Input).value == "beatlesx"
+        assert app.query_one(SearchMode)._typed_query == "beatlesx"
+        assert any(
+            call.args[0] == "beatlesx"
+            for call in mock_search_service.suggest.call_args_list
+        )
+
+
+@pytest.mark.asyncio
+async def test_song_titles_and_search_queries_render_literal_brackets(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    song = SAMPLE_SONGS[0].copy()
+    song["title"] = "[b]Live[/b]"
+    mock_search_service.search.return_value = [song]
+    async with app.run_test() as pilot:
+        app.query_one("#search_input", Input).value = "[b]Live[/b]"
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        table = app.query_one("#results_table", SongTable)
+        label = table.query_one(SongRow).query_one(Label)
+        assert "[b]Live[/b]" in label.render_line(0).text
+        status = app.query_one("#search_status", Label)
+        assert "[b]Live[/b]" in status.render_line(0).text
+
+
+@pytest.mark.asyncio
+async def test_suggestions_render_literal_brackets(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    mock_search_service.suggest.return_value = ["[b]Live[/b]"]
+    async with app.run_test() as pilot:
+        await _load_suggestions(pilot, app)
+        await pilot.pause()
+        suggestions = app.query_one("#suggestion_list", SuggestionList)
+        rendered = "".join(
+            suggestions.render_line(y).text for y in range(suggestions.size.height)
+        )
+        assert "[b]Live[/b]" in rendered
+
+
+@pytest.mark.asyncio
+async def test_search_completion_preserves_focus_while_editing_next_query(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def search(query: str, max_results: int = 10) -> list[Song]:
+        started.set()
+        if not release.wait(timeout=5):
+            raise AssertionError("search was not released")
+        return SAMPLE_SONGS
+
+    mock_search_service.search.side_effect = search
+    app = _make_app(mock_search_service, mock_playback_service)
+    async with app.run_test() as pilot:
+        search_input = app.query_one("#search_input", Input)
+        try:
+            search_input.value = "previous"
+            await pilot.press("enter")
+            for _ in range(20):
+                if started.is_set():
+                    break
+                await pilot.pause()
+            assert started.is_set()
+
+            search_input.value = "next query"
+            await pilot.pause()
+            release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
+
+            assert app.query_one("#results_table", SongTable).has_songs()
+            assert search_input.has_focus
+        finally:
+            release.set()

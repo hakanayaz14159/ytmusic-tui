@@ -1,5 +1,6 @@
 """Profiles mode: local listening identities."""
 
+from functools import partial
 from typing import ClassVar
 
 from textual import work
@@ -36,13 +37,17 @@ class ProfilesMode(Vertical):
         self._users: list[User] = []
 
     def compose(self) -> ComposeResult:
-        yield SelectList(id="profile_list")
+        yield SelectList(id="profile_list", markup=False)
         yield Label("No profiles. Press n to create one.", id="profiles_empty")
 
     @work(thread=True, exclusive=True, group="profiles")
     def reload(self) -> None:
         app = ytmusic_app(self.app)
-        users = app.account_service.list_users()
+        try:
+            users = app.account_service.list_users()
+        except YTMusicError as err:
+            app.call_from_thread(self.notify, str(err), severity="error")
+            return
         app.call_from_thread(self._apply_users, users)
 
     def _apply_users(self, users: list[User]) -> None:
@@ -61,7 +66,7 @@ class ProfilesMode(Vertical):
             return
         self.app.push_screen(
             ConfirmModal(f"Delete profile “{user['username']}”?"),
-            self._on_confirm_delete,
+            partial(self._on_confirm_delete, user),
         )
 
     def on_option_list_option_selected(
@@ -78,11 +83,8 @@ class ProfilesMode(Vertical):
             return
         self._create_profile(name)
 
-    def _on_confirm_delete(self, confirmed: bool | None) -> None:
+    def _on_confirm_delete(self, user: User, confirmed: bool | None) -> None:
         if not confirmed:
-            return
-        user = self._selected_user()
-        if user is None:
             return
         self._delete_profile(user)
 
