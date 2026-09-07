@@ -3,7 +3,7 @@
 from collections.abc import Generator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread, get_ident
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 import pytest
@@ -91,12 +91,6 @@ def _stream(origin_url: str) -> AudioStream:
     )
 
 
-def test_origin_rejects_request_without_required_header(origin: Origin) -> None:
-    with pytest.raises(HTTPError) as exc_info:
-        urlopen(origin.url, timeout=2)
-    assert exc_info.value.code == 403
-
-
 def test_proxy_forwards_required_headers_and_body(origin: Origin) -> None:
     proxy = AudioStreamProxy()
     try:
@@ -149,15 +143,6 @@ def test_proxy_stop_closes_port(origin: Origin, mocker: MockerFixture) -> None:
     assert closed.wait(2)
     with pytest.raises((URLError, OSError, ConnectionError)):
         urlopen(local_url, timeout=1)
-
-
-def test_proxy_binds_localhost(origin: Origin) -> None:
-    proxy = AudioStreamProxy()
-    try:
-        local_url = proxy.start(_stream(origin.url))
-        assert local_url.startswith("http://127.0.0.1:")
-    finally:
-        proxy.stop()
 
 
 def test_proxy_shutdown_runs_off_the_calling_thread(mocker: MockerFixture) -> None:

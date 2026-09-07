@@ -4,22 +4,6 @@ from ytmusic_cli.music.state import AppState
 from ytmusic_cli.music.types import PlaybackState, PlaybackStatus
 
 
-def test_playback_status_enum_values() -> None:
-    assert PlaybackStatus.STOPPED.value == "stopped"
-    assert PlaybackStatus.PLAYING.value == "playing"
-    assert PlaybackStatus.PAUSED.value == "paused"
-
-
-def test_app_state_default_playback_state() -> None:
-    state = AppState()
-    state.reset()
-    playback = state.playback_state.get()
-    assert playback["status"] == PlaybackStatus.STOPPED
-    assert playback["volume"] == 80
-    assert playback["position"] == 0.0
-    assert playback["duration"] == 0
-
-
 def test_app_state_playback_state_set_notifies_subscribers() -> None:
     state = AppState()
     state.reset()

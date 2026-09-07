@@ -169,7 +169,7 @@ async def test_profiles_n_creates_and_d_deletes(
         await pilot.pause()
         await pilot.pause()
         remaining = {user["username"] for user in service.list_users()}
-        assert "second" not in remaining or "keep" in remaining
+        assert remaining == {"keep"}
 
 
 @pytest.mark.asyncio
