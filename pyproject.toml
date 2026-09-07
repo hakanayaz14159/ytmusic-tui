@@ -1,7 +1,7 @@
 [project]
 name = "ytmusic-cli"
 version = "0.1.0"
-description = "A modern command-line interface with Terminal User Interface (TUI) for YouTube Music (Unofficial)"
+description = "Unofficial terminal music player that streams YouTube audio. Not affiliated with Google or YouTube."
 authors = [
     {name = "Hakan Ayaz", email = "hakanayaz14159@gmail.com"}
 ]
@@ -47,9 +47,9 @@ dev = [
 ytmusic-cli = "ytmusic_cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/ytmusic-cli"
-Repository = "https://github.com/yourusername/ytmusic-cli.git"
-Issues = "https://github.com/yourusername/ytmusic-cli/issues"
+Homepage = "https://github.com/hakanayaz14159/ytmusic-cli"
+Repository = "https://github.com/hakanayaz14159/ytmusic-cli.git"
+Issues = "https://github.com/hakanayaz14159/ytmusic-cli/issues"
 
 [build-system]
 requires = ["hatchling"]

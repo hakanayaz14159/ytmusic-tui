@@ -147,6 +147,9 @@ dmypy.json
 # Ruff
 .ruff_cache/
 
+# Node tooling
+node_modules/
+
 # Project specific
 *.db
 config.json
