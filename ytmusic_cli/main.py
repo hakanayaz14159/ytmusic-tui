@@ -687,7 +687,10 @@ def build_production_app() -> YTMusicApp:
 @click.command()
 @click.version_option(version=__version__)
 def main() -> None:
-    """YTMusic CLI — a terminal music player for YouTube audio."""
+    """YTMusic CLI — a terminal music player for YouTube audio.
+
+    Unofficial project. Not affiliated with or endorsed by Google or YouTube.
+    """
 
     try:
         log_path = configure_logging()
