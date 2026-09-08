@@ -23,11 +23,11 @@ enter play   a queue   space pause   / search   ? help
 - At width >= 110, a Queue pane docks beside the active mode (hidden when Queue is the mode).
 - Wordmark is the 3-line box-drawing `YTMUSIC` plus `T U I` (one line when height < 24).
 
-**Global:** `1`-`5` modes, `Tab` / `Shift+Tab` cycle, `/` search field, `Space` play/pause (types a space in an Input), `+` `=` `-` volume, `>` `<` queue skip, `?` help, `q` quit when not in an Input, `Ctrl+q` always quits, `Esc` blurs search or closes a modal (does not change mode).
+**Global:** `1`-`5` modes, `Tab` / `Shift+Tab` cycle, `/` search field, `Space` play/pause (types a space in an Input), `+` `=` `-` volume, `>` `<` queue skip, `?` help, `q` quit when not in an Input, `Ctrl+q` always quits, `Esc` closes a modal (does not change mode). `/` or `i` from a song list focuses the search query. `Esc` blurs search to results when present, or the search mode when results are empty (never leaves focus empty).
 
 **Welcome:** `Enter` select, `n` new profile, `q` quit. Player keys do nothing until the screen dismisses.
 
-**Lists:** `j`/`k` or arrows, `Enter` play (playlist Enter loads the queue), `a` append, `A` add to playlist, `d` remove queue item or playlist track, `n` new playlist or profile, `s` save settings.
+**Lists:** `j`/`k` or arrows, `g`/`G` first/last, `Ctrl+d`/`Ctrl+u` half-page, `Ctrl+f`/`Ctrl+b` page, `Enter` play (playlist Enter loads the queue), `a` append, `A` add to playlist, `d` remove queue item or playlist track, `n` new playlist or profile, `s` save settings.
 
 Colors live in `theme.py` and `app.tcss` only. No hex in Python widgets.
 

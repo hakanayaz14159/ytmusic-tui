@@ -4,12 +4,14 @@ from typing import Protocol, runtime_checkable
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.events import DescendantFocus
 from textual.widget import Widget
-from textual.widgets import Label, ListView
+from textual.widgets import Input, Label, ListView
 
 from ytmusic_tui.consts import COMPACT_HEIGHT_ROWS, WIDE_LAYOUT_COLUMNS
 from ytmusic_tui.music.state import AppState
 from ytmusic_tui.tui.access import ytmusic_app
+from ytmusic_tui.tui.hints import FocusKind, hints_for
 from ytmusic_tui.tui.modes import ModeId
 from ytmusic_tui.tui.modes.playlists import PlaylistsMode
 from ytmusic_tui.tui.modes.profiles import ProfilesMode
@@ -29,20 +31,6 @@ MODES: tuple[ModeId, ...] = (
     "profiles",
     "settings",
 )
-
-HINTS: dict[ModeId, str] = {
-    "search": (
-        "enter play   space pause   down/up complete   a queue   "
-        "A playlist   j/k move   / search   ? help"
-    ),
-    "queue": (
-        "enter play   d remove   j/k move   o open   n save   "
-        "w write   A playlist   ? help"
-    ),
-    "playlists": "enter play   ←/→/h/l pane   n new   d delete   A add   ? help",
-    "profiles": "enter select   n new   d delete   ? help",
-    "settings": "j/k field   ←/→/h/l adjust   s save   ? help",
-}
 
 
 @runtime_checkable
@@ -98,12 +86,25 @@ class AppShell(Vertical):
         for item in MODES:
             self.query_one(f"#{item}", Widget).display = item == mode_id
         self.query_one("#mode_bar", ModeBar).set_active(mode_id)
-        self.query_one("#status_bar", StatusBar).set_hints(HINTS[mode_id])
         self._apply_wide_layout()
         widget = self.query_one(f"#{mode_id}", Widget)
         if isinstance(widget, AppMode):
             widget.reload()
             widget.activate()
+        self._refresh_hints()
+
+    def on_descendant_focus(self, _event: DescendantFocus) -> None:
+        self._refresh_hints()
+
+    def _focus_kind(self) -> FocusKind:
+        if isinstance(self.app.focused, Input):
+            return "input"
+        return "list"
+
+    def _refresh_hints(self) -> None:
+        self.query_one("#status_bar", StatusBar).set_hints(
+            hints_for(self.current_mode, self._focus_kind())
+        )
 
     def next_mode(self) -> None:
         index = MODES.index(self.current_mode)

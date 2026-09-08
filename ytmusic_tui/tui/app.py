@@ -158,8 +158,7 @@ class YTMusicApp(App[None]):
     def action_focus_search(self) -> None:
         if self._insert_if_input("/"):
             return
-        self._shell().switch_mode("search")
-        self.query_one("#search_input", Input).focus()
+        self._focus_search_query()
 
     def action_quit_player(self) -> None:
         if self._focused_is_input():
@@ -241,6 +240,17 @@ class YTMusicApp(App[None]):
         message: SongTable.AppendRequested,
     ) -> None:
         self.append_song(message.song)
+
+    def on_song_table_focus_search_requested(
+        self,
+        message: SongTable.FocusSearchRequested,
+    ) -> None:
+        self._focus_search_query()
+        message.stop()
+
+    def _focus_search_query(self) -> None:
+        self._shell().switch_mode("search")
+        self.query_one("#search_input", Input).focus()
 
     def play_song(self, song: Song, *, queue_index: int | None = None) -> Worker[None]:
         self._playback_generation += 1

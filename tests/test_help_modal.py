@@ -51,6 +51,9 @@ async def test_help_lists_suggestion_keys() -> None:
         assert "shift+tab" in lowered
         assert "=" in help_text
         assert "←" in help_text or "h" in lowered
+        assert "first item" in lowered
+        assert "last item" in lowered
+        assert "half-page" in lowered
 
 
 @pytest.mark.asyncio

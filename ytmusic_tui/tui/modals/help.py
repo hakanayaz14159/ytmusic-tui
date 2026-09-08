@@ -15,6 +15,7 @@ YTMusic - keyboard
 Tab          Next mode
 Shift+Tab    Previous mode
 /            Search and focus query
+i            Focus search from a song list
 Down Up      Complete suggestion
 Space        Play / pause
 +  =  -      Volume
@@ -33,6 +34,10 @@ Esc          Blur search / close dialog
 q            Quit (or close this help)
 Ctrl+q       Quit
 j  k         Move in lists
+g            First item
+G            Last item
+Ctrl+d  u    Half-page down / up
+Ctrl+f  b    Page down / up
 ?            Help
 """
 

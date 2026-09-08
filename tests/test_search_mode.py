@@ -405,6 +405,76 @@ async def test_escape_hides_suggestions_and_keeps_input_focus(
 
 
 @pytest.mark.asyncio
+async def test_escape_without_results_keeps_non_input_focus(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.query_one("#search_input", Input).has_focus
+        await pilot.press("escape")
+        await pilot.pause()
+
+        focused = app.focused
+        assert focused is not None
+        assert not isinstance(focused, Input)
+        assert app.query_one(SearchMode).has_focus
+
+
+@pytest.mark.asyncio
+async def test_escape_with_results_focuses_table(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.query_one("#search_input", Input).value = "ambient"
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        app.query_one("#search_input", Input).focus()
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+
+        table = app.query_one("#results_table", SongTable)
+        assert table.query_one(VimListView).has_focus
+
+
+@pytest.mark.asyncio
+async def test_ctrl_d_deletes_in_search_input_not_list(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.query_one("#search_input", Input).value = "ambient"
+        await pilot.press("enter")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        table = app.query_one("#results_table", SongTable)
+        table.set_selected_index(1)
+        search_input = app.query_one("#search_input", Input)
+        search_input.value = ""
+        search_input.focus()
+        await pilot.pause()
+        await pilot.press("a", "b", "left")
+        await pilot.pause()
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+
+        assert search_input.has_focus
+        assert search_input.value == "a"
+        assert table.selected_index() == 1
+
+
+@pytest.mark.asyncio
 async def test_suggest_failure_hides_list_and_notifies(
     mock_search_service: MagicMock,
     mock_playback_service: MagicMock,

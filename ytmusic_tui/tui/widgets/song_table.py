@@ -14,6 +14,11 @@ from ytmusic_tui.tui.format import (
     SONG_UPLOADER_WIDTH,
     format_song_line,
 )
+from ytmusic_tui.tui.widgets.list_motion import (
+    LIST_MOTION_BINDINGS,
+    clamp_cursor,
+    motion_step,
+)
 
 
 class SongRow(ListItem):
@@ -26,10 +31,39 @@ class SongRow(ListItem):
 
 
 class VimListView(ListView):
-    BINDINGS: ClassVar[list[BindingType]] = [
-        Binding("j", "cursor_down", show=False),
-        Binding("k", "cursor_up", show=False),
-    ]
+    BINDINGS: ClassVar[list[BindingType]] = list(LIST_MOTION_BINDINGS)
+
+    def action_first(self) -> None:
+        if len(self):
+            self.index = 0
+
+    def action_last(self) -> None:
+        count = len(self)
+        if count:
+            self.index = count - 1
+
+    def action_page_down(self) -> None:
+        self._nudge_index(
+            motion_step(self.scrollable_content_region.height, half=False)
+        )
+
+    def action_page_up(self) -> None:
+        self._nudge_index(
+            -motion_step(self.scrollable_content_region.height, half=False)
+        )
+
+    def action_half_page_down(self) -> None:
+        self._nudge_index(motion_step(self.scrollable_content_region.height, half=True))
+
+    def action_half_page_up(self) -> None:
+        self._nudge_index(
+            -motion_step(self.scrollable_content_region.height, half=True)
+        )
+
+    def _nudge_index(self, delta: int) -> None:
+        index = clamp_cursor(self.index, delta, len(self))
+        if index is not None:
+            self.index = index
 
 
 class SongTable(Vertical):
@@ -38,6 +72,8 @@ class SongTable(Vertical):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("a", "append_selected", show=False),
         Binding("d", "delete_selected", show=False),
+        Binding("i", "focus_search", show=False),
+        Binding("slash", "focus_search", show=False),
     ]
 
     class AppendRequested(Message):
@@ -51,6 +87,9 @@ class SongTable(Vertical):
             self.table = table
             self.index = index
             self.song = song
+
+    class FocusSearchRequested(Message):
+        pass
 
     def __init__(
         self,
@@ -121,6 +160,9 @@ class SongTable(Vertical):
         index = self.selected_index()
         if song is not None and index is not None:
             self.post_message(self.DeleteRequested(self, index, song))
+
+    def action_focus_search(self) -> None:
+        self.post_message(self.FocusSearchRequested())
 
     def _rebuild(self) -> None:
         song_list = self.query_one(VimListView)

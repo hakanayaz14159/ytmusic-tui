@@ -38,6 +38,8 @@ _IDLE_STATUS = "Type a query and press Enter."
 class SearchMode(Vertical):
     """Default landing mode."""
 
+    can_focus = True
+
     class PlayingChanged(Message):
         def __init__(self, song: Song | None) -> None:
             super().__init__()
@@ -108,8 +110,8 @@ class SearchMode(Vertical):
         table = self.query_one("#results_table", SongTable)
         if table.display and table.has_songs():
             table.focus_list()
-        else:
-            self.screen.set_focus(None)
+            return
+        self.focus()
 
     def action_suggestion_down(self) -> None:
         if not self._can_navigate_suggestions():
