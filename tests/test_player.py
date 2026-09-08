@@ -10,11 +10,11 @@ import pytest
 import vlc
 from pytest_mock import MockerFixture
 
-from ytmusic_cli.exceptions import PlaybackError
-from ytmusic_cli.music.player import VLCPlayer
-from ytmusic_cli.music.ports import AudioPlayerProtocol
-from ytmusic_cli.music.types import AudioStream
-from ytmusic_cli.utils.log import configure_logging, reset_logging
+from ytmusic_tui.exceptions import PlaybackError
+from ytmusic_tui.music.player import VLCPlayer
+from ytmusic_tui.music.ports import AudioPlayerProtocol
+from ytmusic_tui.music.types import AudioStream
+from ytmusic_tui.utils.log import configure_logging, reset_logging
 
 
 @pytest.fixture
@@ -26,7 +26,7 @@ def mock_vlc(mocker: MockerFixture) -> MagicMock:
     mock_media_player.play.return_value = 0
     mock_instance.media_player_new.return_value = mock_media_player
     mock_instance.media_new.return_value = mock_media
-    mocker.patch("ytmusic_cli.music.player.vlc.Instance", return_value=mock_instance)
+    mocker.patch("ytmusic_tui.music.player.vlc.Instance", return_value=mock_instance)
     return mock_media_player
 
 
@@ -39,7 +39,7 @@ def test_vlc_player_implements_audio_player_protocol(mock_vlc: MagicMock) -> Non
 def test_init_passes_no_video_and_quiet_when_logging_disabled(
     mocker: MockerFixture,
 ) -> None:
-    mock_instance_cls = mocker.patch("ytmusic_cli.music.player.vlc.Instance")
+    mock_instance_cls = mocker.patch("ytmusic_tui.music.player.vlc.Instance")
     VLCPlayer()
     mock_instance_cls.assert_called_once()
     args = mock_instance_cls.call_args[0]
@@ -56,7 +56,7 @@ def test_init_uses_verbose_vlc_logfile_when_logging_enabled(
     monkeypatch.setenv("YTMUSIC_LOG", "1")
     monkeypatch.setenv("YTMUSIC_LOG_FILE", str(tmp_path / "ytmusic.log"))
     configure_logging()
-    mock_instance_cls = mocker.patch("ytmusic_cli.music.player.vlc.Instance")
+    mock_instance_cls = mocker.patch("ytmusic_tui.music.player.vlc.Instance")
     try:
         VLCPlayer()
     finally:
@@ -256,7 +256,7 @@ def test_has_failed_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) -> N
 
 def test_init_wraps_vlc_errors_as_playback_error(mocker: MockerFixture) -> None:
     mocker.patch(
-        "ytmusic_cli.music.player.vlc.Instance",
+        "ytmusic_tui.music.player.vlc.Instance",
         side_effect=OSError("no libvlc"),
     )
     with pytest.raises(PlaybackError, match="Failed to initialize") as exc_info:

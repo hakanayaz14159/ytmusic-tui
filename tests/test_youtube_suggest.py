@@ -7,13 +7,13 @@ from urllib.error import URLError
 import pytest
 from pytest_mock import MockerFixture
 
-from ytmusic_cli.exceptions import SuggestionError
-from ytmusic_cli.music.youtube import Youtube
+from ytmusic_tui.exceptions import SuggestionError
+from ytmusic_tui.music.youtube import Youtube
 
 
 @pytest.fixture
 def youtube_no_init(mocker: MockerFixture) -> Youtube:
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL")
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL")
     return Youtube()
 
 
@@ -22,7 +22,7 @@ def _patch_urlopen(mocker: MockerFixture, payload: object) -> MagicMock:
     response.read.return_value = json.dumps(payload).encode()
     response.__enter__ = MagicMock(return_value=response)
     response.__exit__ = MagicMock(return_value=False)
-    return mocker.patch("ytmusic_cli.music.youtube.urlopen", return_value=response)
+    return mocker.patch("ytmusic_tui.music.youtube.urlopen", return_value=response)
 
 
 def test_suggest_returns_query_strings_from_payload(
@@ -64,7 +64,7 @@ def test_suggest_bad_json_raises_suggestion_error(
     response.read.return_value = b"not-json"
     response.__enter__ = MagicMock(return_value=response)
     response.__exit__ = MagicMock(return_value=False)
-    mocker.patch("ytmusic_cli.music.youtube.urlopen", return_value=response)
+    mocker.patch("ytmusic_tui.music.youtube.urlopen", return_value=response)
 
     with pytest.raises(SuggestionError, match="beat") as exc_info:
         youtube_no_init.suggest("beat")
@@ -96,7 +96,7 @@ def test_suggest_http_error_is_chained(
     mocker: MockerFixture,
 ) -> None:
     cause = URLError("timed out")
-    mocker.patch("ytmusic_cli.music.youtube.urlopen", side_effect=cause)
+    mocker.patch("ytmusic_tui.music.youtube.urlopen", side_effect=cause)
 
     with pytest.raises(SuggestionError) as exc_info:
         youtube_no_init.suggest("beat")

@@ -10,27 +10,27 @@ from pytest_mock import MockerFixture
 from textual.widgets import Input
 
 from tests.conftest import make_test_app
-from ytmusic_cli.db.repositories import (
+from ytmusic_tui.db.repositories import (
     PlaylistRepository,
     SongRepository,
     UserRepository,
 )
-from ytmusic_cli.exceptions import DatabaseError, ValidationError
-from ytmusic_cli.main import YTMusicApp
-from ytmusic_cli.music.services import (
+from ytmusic_tui.exceptions import DatabaseError, ValidationError
+from ytmusic_tui.main import YTMusicApp
+from ytmusic_tui.music.services import (
     AccountService,
     PlaybackService,
     PlaylistService,
     SearchService,
 )
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import Playlist, Song, User
-from ytmusic_cli.tui.modals.add_to_playlist import AddToPlaylistModal
-from ytmusic_cli.tui.modals.confirm import ConfirmModal
-from ytmusic_cli.tui.modes.playlists import PlaylistsMode
-from ytmusic_cli.tui.shell import AppShell
-from ytmusic_cli.tui.widgets.select_list import SelectList
-from ytmusic_cli.tui.widgets.song_table import SongRow, SongTable, VimListView
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import Playlist, Song, User
+from ytmusic_tui.tui.modals.add_to_playlist import AddToPlaylistModal
+from ytmusic_tui.tui.modals.confirm import ConfirmModal
+from ytmusic_tui.tui.modes.playlists import PlaylistsMode
+from ytmusic_tui.tui.shell import AppShell
+from ytmusic_tui.tui.widgets.select_list import SelectList
+from ytmusic_tui.tui.widgets.song_table import SongRow, SongTable, VimListView
 
 SAMPLE_SONG: Song = {
     "video_id": "vid1",

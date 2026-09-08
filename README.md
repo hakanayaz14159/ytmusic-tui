@@ -1,4 +1,4 @@
-# YTMusic CLI
+# YTMusic TUI
 
 A keyboard-driven, audio-only terminal music player for YouTube, built with Python, [Textual](https://github.com/Textualize/textual), [yt-dlp](https://github.com/yt-dlp/yt-dlp), and VLC.
 
@@ -34,47 +34,59 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 
 - **Python** 3.11 or newer
 - **libVLC** on the system — the `vlc` package on Linux, [VLC](https://www.videolan.org/vlc/) on macOS and Windows
-- **[uv](https://docs.astral.sh/uv/)** (recommended) for dependency management
+- **[pipx](https://pipx.pypa.io/)** (recommended) to install the player in its own environment
 
-`python-vlc` is only a binding; playback fails without a system libVLC and a working audio device.
+`python-vlc` is only a binding; playback fails without a system libVLC and a working audio device. You do not need [uv](https://docs.astral.sh/uv/) to install or run the player; uv is for contributors.
+
+> **Name clash.** `pipx install ytmusic-cli` installs a _different_ PyPI project (a playlist downloader). This player is **`ytmusic-tui`**.
 
 ---
 
 ## Installation
 
 ```bash
-git clone https://github.com/hakanayaz14159/ytmusic-cli.git
-cd ytmusic-cli
-uv sync
-uv run ytmusic-cli
+pipx install git+https://github.com/hakanayaz14159/ytmusic-tui.git
+ytmusic-tui
 ```
 
-For the linters, type checker, and test dependencies:
+From a clone, still without uv:
 
 ```bash
-uv sync --all-groups
+git clone https://github.com/hakanayaz14159/ytmusic-tui.git
+cd ytmusic-tui
+pipx install .
 ```
+
+`pip` works the same way (`pip install git+https://...` or `pip install .`) if you would rather put the package in an existing virtualenv.
 
 ---
 
 ## Usage
 
 ```bash
-uv run ytmusic-cli            # launch the TUI
-uv run ytmusic-cli --version
-uv run ytmusic-cli --help
+ytmusic-tui            # launch the TUI
+ytmusic-tui --version
+ytmusic-tui --help
 ```
 
 Press `?` in the app for the keymap: `1`–`5` switch modes and `/` jumps to the query field.
 
+When YouTube breaks stream extraction, refresh yt-dlp inside the pipx environment:
+
+```bash
+pipx upgrade ytmusic-tui
+# or only yt-dlp:
+pipx runpip ytmusic-tui install -U yt-dlp
+```
+
 ### Your data
 
-Everything lives on your machine. Profiles, playlists, and the track metadata they reference are stored in a single SQLite file in the platform data directory (`~/.local/share/ytmusic-cli/ytmusic.db` on Linux). There is no account, no server, and no telemetry.
+Everything lives on your machine. Profiles, playlists, and the track metadata they reference are stored in a single SQLite file in the platform data directory (`~/.local/share/ytmusic-tui/ytmusic.db` on Linux). There is no account, no server, and no telemetry.
 
 File logging is off by default. Enable it when you want to report a bug:
 
 ```bash
-YTMUSIC_LOG=1 uv run ytmusic-cli   # writes a timestamped log next to the database
+YTMUSIC_LOG=1 ytmusic-tui   # writes a timestamped log next to the database
 ```
 
 Logs redact query strings from stream URLs and the `Cookie` and `Authorization` headers, but skim a log before attaching it to an issue.
@@ -86,7 +98,7 @@ Logs redact query strings from stream URLs and the `Cookie` and `Authorization` 
 The project follows a hexagonal (ports and adapters) layout — the domain core does not import Textual, VLC, yt-dlp, or Peewee:
 
 ```
-ytmusic_cli/
+ytmusic_tui/
 ├── db/             # Persistence adapters (Peewee SQLite models & repositories)
 │   ├── user.py     # Profile & user account entities
 │   ├── playlist.py # Playlists & track associations
@@ -112,7 +124,10 @@ ytmusic_cli/
 
 ## Development
 
+Contributors can use [uv](https://docs.astral.sh/uv/):
+
 ```bash
+uv sync --all-groups
 make test        # uv run pytest
 make test-cov    # coverage report
 make lint        # ruff format --check, ruff check, mypy
@@ -132,13 +147,13 @@ Contributions follow test-first development, strict `mypy`, and Conventional Com
 
 ## Project status
 
-Alpha, and a personal project I maintain for my own listening. Bug reports and pull requests are welcome, but there is no roadmap, no release schedule, and no support commitment. Since playback depends on yt-dlp keeping up with YouTube, expect the occasional breakage and keep `yt-dlp` up to date (`uv lock --upgrade-package yt-dlp`).
+Alpha, and a personal project I maintain for my own listening. Bug reports and pull requests are welcome, but there is no roadmap, no release schedule, and no support commitment. Since playback depends on yt-dlp keeping up with YouTube, expect the occasional breakage and keep `yt-dlp` up to date (`pipx upgrade ytmusic-tui`, or `uv lock --upgrade-package yt-dlp` in a contributor checkout).
 
 ---
 
 ## Disclaimer
 
-**Not affiliated with Google.** YTMusic CLI is an independent, unofficial project. It is not affiliated with, endorsed by, sponsored by, or in any way officially connected to Google LLC, YouTube, or YouTube Music. "YouTube" and "YouTube Music" are trademarks of Google LLC and are used here only to describe what this software interoperates with.
+**Not affiliated with Google.** YTMusic TUI is an independent, unofficial project. It is not affiliated with, endorsed by, sponsored by, or in any way officially connected to Google LLC, YouTube, or YouTube Music. "YouTube" and "YouTube Music" are trademarks of Google LLC and are used here only to describe what this software interoperates with.
 
 **No accounts, no API keys.** The player does not use the YouTube Data API and never signs you in. It resolves publicly available audio streams through yt-dlp, exactly as yt-dlp would on the command line.
 

@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from ytmusic_cli.music.ports import AudioPlayerProtocol, MusicSourceProtocol
+from ytmusic_tui.music.ports import AudioPlayerProtocol, MusicSourceProtocol
 
 
 def test_mock_player_satisfies_audio_player_protocol(

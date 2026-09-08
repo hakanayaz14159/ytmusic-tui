@@ -1,12 +1,12 @@
 ---
 description: Test-Driven Development (TDD) workflow, test architecture, and deterministic testing standards
-globs: ["tests/**/*.py", "ytmusic_cli/**/*.py"]
+globs: ["tests/**/*.py", "ytmusic_tui/**/*.py"]
 alwaysApply: true
 ---
 
 # Test-Driven Development (TDD) Rules & Discipline
 
-This rule enforces strict Test-Driven Development across all code written in `ytmusic-cli`. Every change, bugfix, or new feature must follow the Red-Green-Refactor cycle.
+This rule enforces strict Test-Driven Development across all code written in `ytmusic-tui`. Every change, bugfix, or new feature must follow the Red-Green-Refactor cycle.
 
 ---
 
@@ -25,8 +25,8 @@ This rule enforces strict Test-Driven Development across all code written in `yt
 
 3. **REFACTOR (Clean, Type, and Optimize)**:
    - Eliminate duplication, improve readability, and align with design patterns.
-   - Ensure all type annotations are complete (`uv run mypy ytmusic_cli/ tests/`).
-   - Run linters: `uv run ruff check --fix ytmusic_cli/ tests/`.
+   - Ensure all type annotations are complete (`uv run mypy ytmusic_tui/ tests/`).
+   - Run linters: `uv run ruff check --fix ytmusic_tui/ tests/`.
    - Ensure tests remain green after refactoring.
 
 ---
@@ -40,7 +40,7 @@ This rule enforces strict Test-Driven Development across all code written in `yt
 
 2. **Test Isolation**:
    - Every database test must use the `test_db` fixture (`SqliteDatabase(":memory:")`).
-   - No test may write to the real filesystem database (`~/.local/share/ytmusic-cli/ytmusic.db`).
+   - No test may write to the real filesystem database (`~/.local/share/ytmusic-tui/ytmusic.db`).
    - State singletons (`AppState`) must be reset in a fixture or teardown via `AppState().reset()`.
 
 3. **External Dependencies are ALWAYS Mocked in Unit Tests**:
@@ -63,7 +63,7 @@ This rule enforces strict Test-Driven Development across all code written in `yt
 ```python
 import pytest
 from unittest.mock import MagicMock
-from ytmusic_cli.music.types import Song
+from ytmusic_tui.music.types import Song
 
 def test_playback_service_plays_track_and_updates_state(
     mock_youtube: MagicMock,

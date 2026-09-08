@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from tests.conftest import make_test_app
-from ytmusic_cli.main import YTMusicApp
-from ytmusic_cli.tui.modals.help import HelpModal
+from ytmusic_tui.main import YTMusicApp
+from ytmusic_tui.tui.modals.help import HelpModal
 
 
 def _app() -> YTMusicApp:

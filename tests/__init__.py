@@ -1,1 +1,1 @@
-"""Tests for YTMusic CLI."""
+"""Tests for YTMusic TUI."""

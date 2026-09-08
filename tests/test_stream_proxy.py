@@ -9,8 +9,8 @@ from urllib.request import Request, urlopen
 import pytest
 from pytest_mock import MockerFixture
 
-from ytmusic_cli.music.stream_proxy import AudioStreamProxy
-from ytmusic_cli.music.types import AudioStream
+from ytmusic_tui.music.stream_proxy import AudioStreamProxy
+from ytmusic_tui.music.types import AudioStream
 
 _AUDIO = b"ID3fake-audio-bytes"
 _REQUIRED_HEADER = "Sec-Fetch-Mode"

@@ -1,12 +1,12 @@
-# AGENTS.md — Unified Engineering Operating System for YTMusic CLI
+# AGENTS.md — Unified Engineering Operating System for YTMusic TUI
 
-This document is the authoritative engineering specification and operating manual for any agent or engineer contributing to `ytmusic-cli`. It defines a single cohesive development system combining architecture, test-driven development, static typing, terminal interface standards, and delivery discipline.
+This document is the authoritative engineering specification and operating manual for any agent or engineer contributing to `ytmusic-tui`. It defines a single cohesive development system combining architecture, test-driven development, static typing, terminal interface standards, and delivery discipline.
 
 ---
 
 ## 1. System Overview & Core Philosophy
 
-**YTMusic CLI** is an unofficial, high-performance terminal client and TUI (Terminal User Interface) for YouTube Music built with **Python 3.11+**, **Textual**, **yt-dlp**, **python-vlc**, and **Peewee (SQLite)**.
+**YTMusic TUI** is an unofficial, high-performance terminal client and TUI (Terminal User Interface) for YouTube Music built with **Python 3.11+**, **Textual**, **yt-dlp**, **python-vlc**, and **Peewee (SQLite)**.
 
 Every contribution to this codebase is governed by five non-negotiable tenets:
 
@@ -57,7 +57,7 @@ The application follows an inward-pointing **Hexagonal (Ports & Adapters)** and 
 
 ### Architectural Invariants:
 
-1. **Pure Domain (`ytmusic_cli.music.types`, domain models)**:
+1. **Pure Domain (`ytmusic_tui.music.types`, domain models)**:
    - Contains core entities (`Song`, `Playlist`, `User`, `PlaybackState`) and business logic.
    - **ZERO external dependencies**: Must never import Textual, VLC, yt-dlp, or Peewee.
 2. **Ports (Protocols)**:
@@ -65,8 +65,8 @@ The application follows an inward-pointing **Hexagonal (Ports & Adapters)** and 
    - Adapters must conform strictly to these contracts:
      ```python
      from typing import Protocol, runtime_checkable
-     from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT
-     from ytmusic_cli.music.types import AudioStream, Song
+     from ytmusic_tui.consts import DEFAULT_SUGGEST_LIMIT
+     from ytmusic_tui.music.types import AudioStream, Song
 
      @runtime_checkable
      class AudioPlayerProtocol(Protocol):
@@ -143,7 +143,7 @@ Target runtime: **Python 3.11+**.
   from typing import TYPE_CHECKING
 
   if TYPE_CHECKING:
-      from ytmusic_cli.main import YTMusicApp
+      from ytmusic_tui.main import YTMusicApp
   ```
 
 ### 2. Static Typing Standards
@@ -232,7 +232,7 @@ The TUI is implemented with **Textual** and provides a keyboard-first, responsiv
 
   **Files to Touch**:
 
-  - `ytmusic_cli/...`
+  - `ytmusic_tui/...`
   - `tests/test_...`
   ```
 
@@ -243,9 +243,9 @@ No task is considered complete until all items pass:
 - [ ] **TDD Verified**: Failing test written first (Red) and now passing (Green).
 - [ ] **Tests Pass**: `uv run pytest` passes 100% with no skipped or flaky tests.
 - [ ] **Zero Sleeps**: No `time.sleep` or `asyncio.sleep` anywhere in test code.
-- [ ] **Type Check Clean**: `uv run mypy ytmusic_cli/ tests/` reports 0 errors.
-- [ ] **Linter Clean**: `uv run ruff check ytmusic_cli/ tests/` reports 0 warnings.
-- [ ] **Format Clean**: `uv run ruff format --check ytmusic_cli/ tests/` passes.
+- [ ] **Type Check Clean**: `uv run mypy ytmusic_tui/ tests/` reports 0 errors.
+- [ ] **Linter Clean**: `uv run ruff check ytmusic_tui/ tests/` reports 0 warnings.
+- [ ] **Format Clean**: `uv run ruff format --check ytmusic_tui/ tests/` passes.
 - [ ] **Surgical Scope**: Diffs contain only changes strictly required for the task.
 
 ---
@@ -267,7 +267,7 @@ When an agent is assigned a task, it must execute this exact workflow:
 [4. Run pytest to Confirm Expected Failure]
         |
         v
-[5. Write Minimal Production Code in ytmusic_cli/ (Green)]
+[5. Write Minimal Production Code in ytmusic_tui/ (Green)]
         |
         v
 [6. Run pytest to Confirm Green]
@@ -289,7 +289,7 @@ When an agent is assigned a task, it must execute this exact workflow:
 ### Directory Map
 
 ```
-ytmusic-cli/
+ytmusic-tui/
 ├── .cursor/
 │   └── rules/
 │       ├── architecture-domain.mdc     # Hexagonal architecture & state rules
@@ -302,7 +302,7 @@ ytmusic-cli/
 │   ├── conftest.py                     # Shared fixtures (test_db, mock_youtube, mock_player)
 │   ├── test_setup.py                   # Baseline verification tests
 │   └── ...                             # Feature test modules
-├── ytmusic_cli/
+├── ytmusic_tui/
 │   ├── consts.py                       # Paths, database constants, app metadata
 │   ├── main.py                         # Click CLI entrypoint & YTMusicApp
 │   ├── theme.py                        # Custom Textual theme definitions
@@ -322,10 +322,10 @@ ytmusic-cli/
 | `uv sync --all-groups`                         | Install all runtime and development dependencies |
 | `uv run pytest`                                | Run the full automated test suite                |
 | `uv run pytest -k <name>`                      | Run specific tests matching a keyword            |
-| `uv run pytest --cov=ytmusic_cli`              | Run tests with coverage reporting                |
-| `uv run mypy ytmusic_cli/ tests/`              | Run strict static type checking                  |
-| `uv run ruff check --fix ytmusic_cli/ tests/`  | Run Ruff linter with auto-fixing                 |
-| `uv run ruff format ytmusic_cli/ tests/`       | Auto-format all Python code                      |
+| `uv run pytest --cov=ytmusic_tui`              | Run tests with coverage reporting                |
+| `uv run mypy ytmusic_tui/ tests/`              | Run strict static type checking                  |
+| `uv run ruff check --fix ytmusic_tui/ tests/`  | Run Ruff linter with auto-fixing                 |
+| `uv run ruff format ytmusic_tui/ tests/`       | Auto-format all Python code                      |
 | `make lint`                                    | Run format check, linter, and mypy in one pass   |
-| `uv run ytmusic-cli`                           | Launch the CLI application                       |
-| `uv run textual run --dev ytmusic_cli/main.py` | Launch TUI in Textual dev/debug mode             |
+| `uv run ytmusic-tui`                           | Launch the TUI application                       |
+| `uv run textual run --dev ytmusic_tui/main.py` | Launch TUI in Textual dev/debug mode             |

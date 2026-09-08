@@ -8,10 +8,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ytmusic_cli.music.services import PlaybackService
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackTickAction, Song
-from ytmusic_cli.utils.log import (
+from ytmusic_tui.music.services import PlaybackService
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import PlaybackTickAction, Song
+from ytmusic_tui.utils.log import (
     LOGGER_NAME,
     configure_logging,
     log_file_path,
@@ -40,7 +40,7 @@ def test_configure_logging_unset_creates_no_file(
 ) -> None:
     monkeypatch.delenv("YTMUSIC_LOG", raising=False)
     monkeypatch.delenv("YTMUSIC_LOG_FILE", raising=False)
-    monkeypatch.setattr("ytmusic_cli.utils.log.APP_DIR", tmp_path)
+    monkeypatch.setattr("ytmusic_tui.utils.log.APP_DIR", tmp_path)
 
     path = configure_logging()
 
@@ -82,7 +82,7 @@ def test_configure_logging_writes_info_line_to_override_path(
     text = log_path.read_text()
     assert "INFO" in text
     assert "hello-from-test" in text
-    assert "ytmusic_cli" in text
+    assert "ytmusic_tui" in text
 
 
 def test_configure_logging_default_path_uses_start_datetime(
@@ -91,7 +91,7 @@ def test_configure_logging_default_path_uses_start_datetime(
 ) -> None:
     monkeypatch.setenv("YTMUSIC_LOG", "1")
     monkeypatch.delenv("YTMUSIC_LOG_FILE", raising=False)
-    monkeypatch.setattr("ytmusic_cli.utils.log.APP_DIR", tmp_path)
+    monkeypatch.setattr("ytmusic_tui.utils.log.APP_DIR", tmp_path)
     started = datetime(2026, 9, 5, 3, 15, 0)
 
     path = configure_logging(started_at=started)

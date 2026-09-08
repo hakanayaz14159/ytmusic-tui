@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for YTMusic CLI test suite."""
+"""Shared pytest fixtures for YTMusic TUI test suite."""
 
 import socket
 from collections.abc import Generator
@@ -9,21 +9,21 @@ import pytest
 from peewee import SqliteDatabase
 from pytest_mock import MockerFixture
 
-from ytmusic_cli.db.playlist import Playlist
-from ytmusic_cli.db.song import Song
-from ytmusic_cli.db.user import User
-from ytmusic_cli.main import YTMusicApp
-from ytmusic_cli.music.services import (
+from ytmusic_tui.db.playlist import Playlist
+from ytmusic_tui.db.song import Song
+from ytmusic_tui.db.user import User
+from ytmusic_tui.main import YTMusicApp
+from ytmusic_tui.music.services import (
     AccountService,
     PlaybackService,
     PlaylistService,
     SearchService,
     SettingsService,
 )
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import AudioStream
-from ytmusic_cli.music.types import Song as SongType
-from ytmusic_cli.utils.log import reset_logging
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import AudioStream
+from ytmusic_tui.music.types import Song as SongType
+from ytmusic_tui.utils.log import reset_logging
 
 MODELS = [User, Song, Playlist, Playlist.songs.get_through_model()]
 
@@ -62,7 +62,7 @@ def isolate_logging() -> Generator[None, None, None]:
 def fast_suggest_debounce(monkeypatch: pytest.MonkeyPatch) -> None:
     # Textual Timer rejects interval 0.
     monkeypatch.setattr(
-        "ytmusic_cli.tui.modes.search.SUGGEST_DEBOUNCE_SECONDS",
+        "ytmusic_tui.tui.modes.search.SUGGEST_DEBOUNCE_SECONDS",
         0.01,
     )
 

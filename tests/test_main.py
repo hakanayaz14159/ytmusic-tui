@@ -9,21 +9,21 @@ from click.testing import CliRunner
 from peewee import SqliteDatabase
 from pytest_mock import MockerFixture
 
-import ytmusic_cli.consts as consts_mod
+import ytmusic_tui.consts as consts_mod
 from tests.conftest import make_test_app
-from ytmusic_cli import __version__
-from ytmusic_cli.consts import DEFAULT_USERNAME
-from ytmusic_cli.db.bootstrap import bootstrap
-from ytmusic_cli.db.user import User
-from ytmusic_cli.main import build_production_app, main
-from ytmusic_cli.music.services import (
+from ytmusic_tui import __version__
+from ytmusic_tui.consts import DEFAULT_USERNAME
+from ytmusic_tui.db.bootstrap import bootstrap
+from ytmusic_tui.db.user import User
+from ytmusic_tui.main import build_production_app, main
+from ytmusic_tui.music.services import (
     AccountService,
     PlaybackService,
     PlaylistService,
     SearchService,
     SettingsService,
 )
-from ytmusic_cli.music.state import AppState
+from ytmusic_tui.music.state import AppState
 
 
 def test_consts_import_does_not_create_app_directory(
@@ -57,7 +57,7 @@ def test_cli_help() -> None:
     runner = CliRunner()
     result = runner.invoke(main, ["--help"])
     assert result.exit_code == 0
-    assert "YTMusic CLI" in result.output
+    assert "YTMusic TUI" in result.output
 
 
 @pytest.mark.asyncio
@@ -86,9 +86,9 @@ def test_bootstrap_creates_default_user(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr("ytmusic_cli.db.bootstrap.db", test_db)
-    monkeypatch.setattr("ytmusic_cli.db.bootstrap.APP_DIR", tmp_path)
-    monkeypatch.setattr("ytmusic_cli.db.bootstrap.DB_PATH", tmp_path / "ytmusic.db")
+    monkeypatch.setattr("ytmusic_tui.db.bootstrap.db", test_db)
+    monkeypatch.setattr("ytmusic_tui.db.bootstrap.APP_DIR", tmp_path)
+    monkeypatch.setattr("ytmusic_tui.db.bootstrap.DB_PATH", tmp_path / "ytmusic.db")
     bootstrap()
     user = AppState().current_user.get()
     assert user is not None
@@ -97,11 +97,11 @@ def test_bootstrap_creates_default_user(
 
 
 def test_build_production_app_wires_services(mocker: MockerFixture) -> None:
-    mocker.patch("ytmusic_cli.main.Youtube")
-    mocker.patch("ytmusic_cli.main.VLCPlayer")
-    mocker.patch("ytmusic_cli.main.UserRepository")
-    mocker.patch("ytmusic_cli.main.SongRepository")
-    mocker.patch("ytmusic_cli.main.PlaylistRepository")
+    mocker.patch("ytmusic_tui.main.Youtube")
+    mocker.patch("ytmusic_tui.main.VLCPlayer")
+    mocker.patch("ytmusic_tui.main.UserRepository")
+    mocker.patch("ytmusic_tui.main.SongRepository")
+    mocker.patch("ytmusic_tui.main.PlaylistRepository")
     app = build_production_app()
     assert isinstance(app.search_service, SearchService)
     assert isinstance(app.playback_service, PlaybackService)
@@ -111,7 +111,7 @@ def test_build_production_app_wires_services(mocker: MockerFixture) -> None:
 
 
 def test_main_fatal_path_exits_one(mocker: MockerFixture) -> None:
-    mocker.patch("ytmusic_cli.main.configure_logging", side_effect=RuntimeError("boom"))
+    mocker.patch("ytmusic_tui.main.configure_logging", side_effect=RuntimeError("boom"))
     runner = CliRunner()
     result = runner.invoke(main, [])
     assert result.exit_code == 1

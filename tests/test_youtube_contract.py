@@ -5,8 +5,8 @@ from urllib.request import Request, urlopen
 import pytest
 from pytest_mock import MockerFixture
 
-from ytmusic_cli.music.ports import MusicSourceProtocol
-from ytmusic_cli.music.youtube import Youtube
+from ytmusic_tui.music.ports import MusicSourceProtocol
+from ytmusic_tui.music.youtube import Youtube
 
 _ME_AT_THE_ZOO = "jNQXAC9IVRw"
 
@@ -52,5 +52,5 @@ def test_search_returns_requested_number_of_populated_songs(
 def test_youtube_adapter_satisfies_music_source_protocol(
     mocker: MockerFixture,
 ) -> None:
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL")
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL")
     assert isinstance(Youtube(), MusicSourceProtocol)

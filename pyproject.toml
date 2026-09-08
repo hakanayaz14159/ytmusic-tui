@@ -1,6 +1,6 @@
 [project]
-name = "ytmusic-cli"
-version = "0.1.0"
+name = "ytmusic-tui"
+dynamic = ["version"]
 description = "Unofficial terminal music player that streams YouTube audio. Not affiliated with Google or YouTube."
 authors = [
     {name = "Hakan Ayaz", email = "hakanayaz14159@gmail.com"}
@@ -44,16 +44,25 @@ dev = [
 ]
 
 [project.scripts]
-ytmusic-cli = "ytmusic_cli.main:main"
+ytmusic-tui = "ytmusic_tui.main:main"
 
 [project.urls]
-Homepage = "https://github.com/hakanayaz14159/ytmusic-cli"
-Repository = "https://github.com/hakanayaz14159/ytmusic-cli.git"
-Issues = "https://github.com/hakanayaz14159/ytmusic-cli/issues"
+Homepage = "https://github.com/hakanayaz14159/ytmusic-tui"
+Repository = "https://github.com/hakanayaz14159/ytmusic-tui.git"
+Issues = "https://github.com/hakanayaz14159/ytmusic-tui/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "ytmusic_tui/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ytmusic_tui"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/ytmusic_tui", "/README.md", "/LICENSE"]
 
 [tool.ruff]
 target-version = "py311"
@@ -94,7 +103,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*" = ["PLR2004", "S101", "TID252", "ARG001", "ARG002", "TC001", "TC002"]
-"ytmusic_cli/**/*" = []
+"ytmusic_tui/**/*" = []
 
 [tool.ruff.format]
 quote-style = "double"
@@ -125,7 +134,7 @@ module = [
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = "ytmusic_cli.db.db"
+module = "ytmusic_tui.db.db"
 disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
@@ -142,7 +151,7 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["ytmusic_cli"]
+source = ["ytmusic_tui"]
 branch = true
 
 [tool.coverage.report]

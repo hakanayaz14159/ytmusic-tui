@@ -6,12 +6,12 @@ import pytest
 from textual.widgets import Input, Static
 
 from tests.conftest import make_test_app
-from ytmusic_cli.exceptions import StreamExtractionError
-from ytmusic_cli.music.services import PlaybackService, SearchService
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import AudioStream, PlaybackStatus
-from ytmusic_cli.tui.widgets.now_playing import NowPlaying
-from ytmusic_cli.tui.widgets.song_table import SongTable, VimListView
+from ytmusic_tui.exceptions import StreamExtractionError
+from ytmusic_tui.music.services import PlaybackService, SearchService
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import AudioStream, PlaybackStatus
+from ytmusic_tui.tui.widgets.now_playing import NowPlaying
+from ytmusic_tui.tui.widgets.song_table import SongTable, VimListView
 
 
 @pytest.mark.asyncio

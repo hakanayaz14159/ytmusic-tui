@@ -6,12 +6,12 @@ import pytest
 from textual.widgets import Static
 
 from tests.conftest import make_test_app
-from ytmusic_cli.main import YTMusicApp
-from ytmusic_cli.music.services import PlaybackService, SearchService
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackStatus, Song
-from ytmusic_cli.tui.widgets.now_playing import NowPlaying
-from ytmusic_cli.tui.widgets.status_bar import StatusBar
+from ytmusic_tui.main import YTMusicApp
+from ytmusic_tui.music.services import PlaybackService, SearchService
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import PlaybackStatus, Song
+from ytmusic_tui.tui.widgets.now_playing import NowPlaying
+from ytmusic_tui.tui.widgets.status_bar import StatusBar
 
 
 def _make_app(

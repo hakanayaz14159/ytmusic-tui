@@ -1,6 +1,6 @@
 ---
 description: Textual TUI design system, terminal UX navigation, TCSS styling, and responsive terminal layout
-globs: ["ytmusic_cli/tui/**/*.py", "ytmusic_cli/app.tcss", "ytmusic_cli/theme.py"]
+globs: ["ytmusic_tui/tui/**/*.py", "ytmusic_tui/app.tcss", "ytmusic_tui/theme.py"]
 alwaysApply: true
 ---
 

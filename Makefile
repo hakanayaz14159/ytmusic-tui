@@ -12,22 +12,22 @@ dev-install: ## Install with development dependencies
 	uv sync --all-groups
 
 format: ## Format code and organize imports with ruff
-	uv run ruff format ytmusic_cli/ tests/
-	uv run ruff check --fix ytmusic_cli/ tests/
+	uv run ruff format ytmusic_tui/ tests/
+	uv run ruff check --fix ytmusic_tui/ tests/
 
 lint: ## Run all linters (ruff format check, ruff lint, mypy)
-	uv run ruff format --check ytmusic_cli/ tests/
-	uv run ruff check ytmusic_cli/ tests/
-	uv run mypy ytmusic_cli/
+	uv run ruff format --check ytmusic_tui/ tests/
+	uv run ruff check ytmusic_tui/ tests/
+	uv run mypy ytmusic_tui/
 
 test: ## Run tests
 	uv run pytest
 
 test-cov: ## Run tests with coverage
-	uv run pytest --cov=ytmusic_cli --cov-report=html --cov-report=term
+	uv run pytest --cov=ytmusic_tui --cov-report=html --cov-report=term
 
 coverage: ## Run the coverage gate (fail_under from pyproject)
-	uv run pytest --cov=ytmusic_cli --cov-report=term-missing
+	uv run pytest --cov=ytmusic_tui --cov-report=term-missing
 
 clean: ## Clean build artifacts
 	rm -rf build/
@@ -45,10 +45,10 @@ build: ## Build the package
 	uv build
 
 run: ## Run the application
-	uv run ytmusic-cli
+	uv run ytmusic-tui
 
 dev: ## Run in development mode with textual dev tools
-	uv run textual run --dev ytmusic_cli/main.py
+	uv run textual run --dev ytmusic_tui/main.py
 
 pre-commit: ## Run pre-commit hooks on all files
 	uv run pre-commit run --all-files

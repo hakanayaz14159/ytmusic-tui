@@ -74,7 +74,7 @@ This audit covers the existing Search, Queue, Playlists, Profiles, and Settings 
 
 ## Verification and limits
 
-Run `uv run pytest`, `uv run mypy ytmusic_cli/ tests/`, `uv run ruff check ytmusic_cli/ tests/`, and `uv run ruff format --check ytmusic_cli/ tests/`. New concurrency tests coordinate using events; no hard sleeps were added. Database tests use the in-memory fixture and audio adapters are mocked.
+Run `uv run pytest`, `uv run mypy ytmusic_tui/ tests/`, `uv run ruff check ytmusic_tui/ tests/`, and `uv run ruff format --check ytmusic_tui/ tests/`. New concurrency tests coordinate using events; no hard sleeps were added. Database tests use the in-memory fixture and audio adapters are mocked.
 
 The original baseline passed 230 offline tests but omitted these failure cases. Final verification passed 305 offline tests in 39.76 seconds, with the three opt-in network tests deselected. Mypy, Ruff lint, Ruff formatting, and whitespace checks passed. This runtime exceeds the aspirational two-second target in `AGENTS.md`.
 

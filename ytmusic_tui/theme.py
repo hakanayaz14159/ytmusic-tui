@@ -1,0 +1,43 @@
+"""Ink / Amber / Mint theme for the YTMusic TUI player."""
+
+from textual.theme import Theme
+
+ytmusic_theme = Theme(
+    name="ytmusic",
+    primary="#E0B15A",
+    secondary="#6EC8C0",
+    accent="#6EC8C0",
+    warning="#D89B4A",
+    error="#E06C75",
+    success="#3DDC97",
+    foreground="#E8EDF4",
+    background="#0B0E14",
+    surface="#141A22",
+    panel="#1B2330",
+    dark=True,
+    variables={
+        "text-muted": "#8B95A5",
+        "border": "#2A3444",
+        "border-blurred": "#2A3444",
+        "scrollbar": "#1B2330",
+        "scrollbar-hover": "#2A3444",
+        "scrollbar-active": "#E0B15A",
+        "scrollbar-background": "#0B0E14",
+        "block-cursor-background": "#E0B15A",
+        "block-cursor-foreground": "#0B0E14",
+        "block-cursor-text-style": "bold",
+        "block-cursor-blurred-background": "#E0B15A40",
+        "input-cursor-background": "#E8EDF4",
+        "input-cursor-foreground": "#0B0E14",
+        "input-selection-background": "#E0B15A40",
+        "footer-foreground": "#E8EDF4",
+        "footer-background": "#1B2330",
+        "footer-key-foreground": "#E0B15A",
+        "footer-key-background": "transparent",
+        "button-foreground": "#E8EDF4",
+        "button-color-foreground": "#0B0E14",
+        "link-color": "#6EC8C0",
+        "link-color-hover": "#8ED9D3",
+        "link-background-hover": "#6EC8C020",
+    },
+)

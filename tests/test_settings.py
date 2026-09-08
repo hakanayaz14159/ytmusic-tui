@@ -7,14 +7,14 @@ from peewee import SqliteDatabase
 from pytest_mock import MockerFixture
 
 from tests.conftest import make_test_app
-from ytmusic_cli.consts import WIDE_LAYOUT_COLUMNS
-from ytmusic_cli.db.repositories import UserRepository
-from ytmusic_cli.exceptions import ValidationError
-from ytmusic_cli.music.services import AccountService, SettingsService
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import User, UserSettings
-from ytmusic_cli.tui.modes.settings import SettingsMode
-from ytmusic_cli.tui.shell import AppShell
+from ytmusic_tui.consts import WIDE_LAYOUT_COLUMNS
+from ytmusic_tui.db.repositories import UserRepository
+from ytmusic_tui.exceptions import ValidationError
+from ytmusic_tui.music.services import AccountService, SettingsService
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import User, UserSettings
+from ytmusic_tui.tui.modes.settings import SettingsMode
+from ytmusic_tui.tui.shell import AppShell
 
 
 def test_settings_save_round_trip(test_db: SqliteDatabase) -> None:

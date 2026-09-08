@@ -6,7 +6,7 @@ alwaysApply: true
 
 # Project Management & Engineering Discipline
 
-This rule defines project governance, task breakdown criteria, and quality standards for `ytmusic-cli`.
+This rule defines project governance, task breakdown criteria, and quality standards for `ytmusic-tui`.
 
 ---
 
@@ -38,7 +38,7 @@ This rule defines project governance, task breakdown criteria, and quality stand
 - **Then**: [Expected verifiable outcome]
 
 **Files to Touch**:
-- `ytmusic_cli/...`
+- `ytmusic_tui/...`
 - `tests/test_...`
 ```
 
@@ -53,10 +53,10 @@ Before any task or pull request is considered complete, the following checklist 
    - All tests pass: `uv run pytest`.
    - Zero hard sleeps (`time.sleep` / `asyncio.sleep`) in the test suite.
 2. **Type Checking Clean**:
-   - `uv run mypy ytmusic_cli/ tests/` passes with 0 errors.
+   - `uv run mypy ytmusic_tui/ tests/` passes with 0 errors.
 3. **Linting & Formatting Clean**:
-   - `uv run ruff check ytmusic_cli/ tests/` passes.
-   - `uv run ruff format --check ytmusic_cli/ tests/` passes.
+   - `uv run ruff check ytmusic_tui/ tests/` passes.
+   - `uv run ruff format --check ytmusic_tui/ tests/` passes.
 4. **Git Hygiene**:
    - Follow Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`.
    - Surgical diffs only (no unrelated whitespace, reordering, or refactoring).

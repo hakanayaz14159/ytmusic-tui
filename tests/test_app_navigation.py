@@ -7,12 +7,12 @@ from pytest_mock import MockerFixture
 from textual.widgets import Input
 
 from tests.conftest import make_test_app
-from ytmusic_cli.main import YTMusicApp
-from ytmusic_cli.music.types import PlaybackTick, PlaybackTickAction
-from ytmusic_cli.tui.modals.help import HelpModal
-from ytmusic_cli.tui.modes.search import SearchMode
-from ytmusic_cli.tui.shell import AppShell
-from ytmusic_cli.tui.widgets.now_playing import NowPlaying
+from ytmusic_tui.main import YTMusicApp
+from ytmusic_tui.music.types import PlaybackTick, PlaybackTickAction
+from ytmusic_tui.tui.modals.help import HelpModal
+from ytmusic_tui.tui.modes.search import SearchMode
+from ytmusic_tui.tui.shell import AppShell
+from ytmusic_tui.tui.widgets.now_playing import NowPlaying
 
 
 @pytest.fixture

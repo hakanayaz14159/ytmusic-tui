@@ -4,15 +4,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT, PLAYBACK_STALL_TICKS
-from ytmusic_cli.exceptions import (
+from ytmusic_tui.consts import DEFAULT_SUGGEST_LIMIT, PLAYBACK_STALL_TICKS
+from ytmusic_tui.exceptions import (
     PlaybackError,
     StreamExtractionError,
     ValidationError,
 )
-from ytmusic_cli.music.services import PlaybackService, SearchService
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import (
+from ytmusic_tui.music.services import PlaybackService, SearchService
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import (
     AudioStream,
     PlaybackStatus,
     PlaybackTickAction,

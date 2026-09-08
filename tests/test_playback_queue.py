@@ -4,10 +4,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from ytmusic_cli.exceptions import PlaybackError
-from ytmusic_cli.music.services import PlaybackService
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackStatus, Song
+from ytmusic_tui.exceptions import PlaybackError
+from ytmusic_tui.music.services import PlaybackService
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import PlaybackStatus, Song
 
 
 @pytest.fixture

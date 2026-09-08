@@ -1644,8 +1644,7 @@ wheels = [
 ]
 
 [[package]]
-name = "ytmusic-cli"
-version = "0.1.0"
+name = "ytmusic-tui"
 source = { editable = "." }
 dependencies = [
     { name = "click" },

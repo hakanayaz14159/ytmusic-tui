@@ -2,7 +2,7 @@
 
 import pytest
 
-from ytmusic_cli.tui.format import (
+from ytmusic_tui.tui.format import (
     format_duration,
     format_progress_bar,
     format_volume_gauge,

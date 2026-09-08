@@ -5,14 +5,14 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from ytmusic_cli.exceptions import StreamExtractionError, TrackNotFoundError
-from ytmusic_cli.music.youtube import Youtube
+from ytmusic_tui.exceptions import StreamExtractionError, TrackNotFoundError
+from ytmusic_tui.music.youtube import Youtube
 
 
 @pytest.fixture
 def youtube_no_init(mocker: MockerFixture) -> Youtube:
     """Construct Youtube without calling real YoutubeDL.__init__."""
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL")
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL")
     return Youtube()
 
 
@@ -24,7 +24,7 @@ def test_search_raises_stream_extraction_error_on_ydl_failure(
     mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
     mock_ydl.__exit__ = MagicMock(return_value=False)
     mock_ydl.extract_info.side_effect = RuntimeError("network down")
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     with pytest.raises(StreamExtractionError, match="Search failed") as exc_info:
         youtube_no_init.search("lofi")
@@ -45,7 +45,7 @@ def test_get_stream_returns_url_and_headers_from_top_level_info(
             "Referer": "https://www.youtube.com/",
         },
     }
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     stream = youtube_no_init.get_stream("dQw4w9WgXcQ")
     assert stream["url"] == "https://googlevideo.com/videoplayback?id=123"
@@ -75,7 +75,7 @@ def test_get_stream_returns_url_and_headers_from_best_audio_format(
             }
         ],
     }
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     stream = youtube_no_init.get_stream("dQw4w9WgXcQ")
     assert stream["url"] == "https://googlevideo.com/videoplayback?fmt=opus"
@@ -93,7 +93,7 @@ def test_get_stream_raises_track_not_found_when_info_missing(
     mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
     mock_ydl.__exit__ = MagicMock(return_value=False)
     mock_ydl.extract_info.return_value = None
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     with pytest.raises(TrackNotFoundError, match="Could not extract info"):
         youtube_no_init.get_stream("dQw4w9WgXcQ")
@@ -109,7 +109,7 @@ def test_get_stream_raises_track_not_found_when_no_audio_format(
     mock_ydl.extract_info.return_value = {
         "formats": [{"acodec": "none", "url": "https://example.com/video"}],
     }
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     with pytest.raises(TrackNotFoundError, match="No audio stream URL found"):
         youtube_no_init.get_stream("dQw4w9WgXcQ")
@@ -123,7 +123,7 @@ def test_get_stream_wraps_ydl_failure_as_stream_extraction_error(
     mock_ydl.__enter__ = MagicMock(return_value=mock_ydl)
     mock_ydl.__exit__ = MagicMock(return_value=False)
     mock_ydl.extract_info.side_effect = OSError("tls error")
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     with pytest.raises(
         StreamExtractionError, match="Failed to get stream URL"
@@ -187,7 +187,7 @@ def test_get_stream_rejects_non_string_headers(
         "url": "https://googlevideo.com/videoplayback?id=123",
         "http_headers": {"User-Agent": 1},
     }
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     with pytest.raises(StreamExtractionError, match="Invalid stream headers"):
         youtube_no_init.get_stream("dQw4w9WgXcQ")
@@ -229,7 +229,7 @@ def test_search_uses_extract_flat_in_playlist(
     mock_ydl.__exit__ = MagicMock(return_value=False)
     mock_ydl.extract_info.return_value = {"entries": []}
     patched = mocker.patch(
-        "ytmusic_cli.music.youtube.YoutubeDL",
+        "ytmusic_tui.music.youtube.YoutubeDL",
         return_value=mock_ydl,
     )
 
@@ -251,7 +251,7 @@ def test_get_stream_pins_android_player_client(
         "http_headers": {"User-Agent": "test-agent"},
     }
     patched = mocker.patch(
-        "ytmusic_cli.music.youtube.YoutubeDL",
+        "ytmusic_tui.music.youtube.YoutubeDL",
         return_value=mock_ydl,
     )
 
@@ -287,7 +287,7 @@ def test_get_stream_prefers_best_audio_only_format_and_merges_headers(
             {"acodec": "aac", "vcodec": "avc1", "url": "https://video/high"},
         ],
     }
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     stream = youtube_no_init.get_stream("dQw4w9WgXcQ")
 
@@ -312,7 +312,7 @@ def test_get_stream_skips_formats_without_an_audio_codec(
             {"acodec": "none", "url": "https://video/silent"},
         ]
     }
-    mocker.patch("ytmusic_cli.music.youtube.YoutubeDL", return_value=mock_ydl)
+    mocker.patch("ytmusic_tui.music.youtube.YoutubeDL", return_value=mock_ydl)
 
     with pytest.raises(TrackNotFoundError, match="No audio stream"):
         youtube_no_init.get_stream("dQw4w9WgXcQ")

@@ -9,21 +9,21 @@ from pytest_mock import MockerFixture
 from textual.widgets import Input
 
 from tests.conftest import make_test_app
-from ytmusic_cli.consts import DEFAULT_USERNAME
-from ytmusic_cli.db.repositories import (
+from ytmusic_tui.consts import DEFAULT_USERNAME
+from ytmusic_tui.db.repositories import (
     PlaylistRepository,
     SongRepository,
     UserRepository,
 )
-from ytmusic_cli.db.user import User as DbUser
-from ytmusic_cli.exceptions import DatabaseError, ValidationError
-from ytmusic_cli.music.services import AccountService
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import User
-from ytmusic_cli.tui.modals.confirm import ConfirmModal
-from ytmusic_cli.tui.modes.profiles import ProfilesMode
-from ytmusic_cli.tui.shell import AppShell
-from ytmusic_cli.tui.widgets.select_list import SelectList
+from ytmusic_tui.db.user import User as DbUser
+from ytmusic_tui.exceptions import DatabaseError, ValidationError
+from ytmusic_tui.music.services import AccountService
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import User
+from ytmusic_tui.tui.modals.confirm import ConfirmModal
+from ytmusic_tui.tui.modes.profiles import ProfilesMode
+from ytmusic_tui.tui.shell import AppShell
+from ytmusic_tui.tui.widgets.select_list import SelectList
 
 
 @pytest.fixture

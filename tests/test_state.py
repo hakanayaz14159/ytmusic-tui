@@ -1,7 +1,7 @@
 """Tests for PlaybackState domain types and AppState extension."""
 
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackState, PlaybackStatus
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import PlaybackState, PlaybackStatus
 
 
 def test_app_state_playback_state_set_notifies_subscribers() -> None:

@@ -1,12 +1,12 @@
 ---
 description: Software architecture, domain boundaries, hexagonal ports and adapters, and state management
-globs: ["ytmusic_cli/**/*.py"]
+globs: ["ytmusic_tui/**/*.py"]
 alwaysApply: true
 ---
 
 # Architecture & Domain Boundary Rules
 
-`ytmusic-cli` follows a **Hexagonal (Ports & Adapters)** and **Domain-Driven** architectural structure.
+`ytmusic-tui` follows a **Hexagonal (Ports & Adapters)** and **Domain-Driven** architectural structure.
 
 ---
 
@@ -34,20 +34,20 @@ Dependencies must point **inward** toward the core domain:
 ```
 
 ### Layer Boundaries:
-1. **Domain Layer (`ytmusic_cli.music.types`, domain models)**:
+1. **Domain Layer (`ytmusic_tui.music.types`, domain models)**:
    - Contains core entities (`Song`, `Playlist`, `User`, `PlaybackState`) and business rules.
    - **ZERO external dependencies**: Must not import Textual, VLC, yt-dlp, or Peewee.
 2. **Ports (Interfaces)**:
    - Defined using `typing.Protocol` (e.g. `AudioPlayerProtocol`, `MusicSourceProtocol`, `SongRepositoryProtocol`).
    - Reside in the application/domain interface modules.
-3. **Infrastructure / Adapters (`ytmusic_cli.music.youtube`, VLC player, DB repositories)**:
+3. **Infrastructure / Adapters (`ytmusic_tui.music.youtube`, VLC player, DB repositories)**:
    - Implement the domain ports.
    - Wrap third-party libraries (`yt-dlp`, `python-vlc`, `peewee`).
    - Translate external raw dictionaries into domain types at the boundary.
 4. **Application Layer (Services)**:
    - Orchestrates workflows: `SearchService`, `PlaybackService`, `PlaylistService`.
    - Injected with adapter implementations via protocols.
-5. **Presentation Layer (`ytmusic_cli.tui.*`)**:
+5. **Presentation Layer (`ytmusic_tui.tui.*`)**:
    - Textual widgets, screens, and TCSS stylesheets.
    - Dispatches user commands to application services.
    - Observes state changes reactively.
@@ -70,8 +70,8 @@ Dependencies must point **inward** toward the core domain:
 
 ```python
 from typing import Protocol, runtime_checkable
-from ytmusic_cli.consts import DEFAULT_SUGGEST_LIMIT
-from ytmusic_cli.music.types import AudioStream, Song
+from ytmusic_tui.consts import DEFAULT_SUGGEST_LIMIT
+from ytmusic_tui.music.types import AudioStream, Song
 
 @runtime_checkable
 class AudioPlayerProtocol(Protocol):

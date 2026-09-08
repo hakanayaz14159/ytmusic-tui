@@ -10,9 +10,9 @@ from textual.widgets import Input
 from textual.worker import WorkerCancelled
 
 from tests.conftest import make_test_app
-from ytmusic_cli.exceptions import PlaybackError, StreamExtractionError
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import (
+from ytmusic_tui.exceptions import PlaybackError, StreamExtractionError
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import (
     AudioStream,
     PlaybackTick,
     PlaybackTickAction,
@@ -20,9 +20,9 @@ from ytmusic_cli.music.types import (
     Song,
     User,
 )
-from ytmusic_cli.tui.modals.prompt import PromptModal
-from ytmusic_cli.tui.shell import AppShell
-from ytmusic_cli.tui.widgets.queue_list import QueueList
+from ytmusic_tui.tui.modals.prompt import PromptModal
+from ytmusic_tui.tui.shell import AppShell
+from ytmusic_tui.tui.widgets.queue_list import QueueList
 
 
 @pytest.mark.asyncio

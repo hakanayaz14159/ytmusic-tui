@@ -1,12 +1,12 @@
 ---
-description: Strict typing, linting, formatting, and Python code standards for ytmusic-cli
-globs: ["ytmusic_cli/**/*.py", "tests/**/*.py"]
+description: Strict typing, linting, formatting, and Python code standards for ytmusic-tui
+globs: ["ytmusic_tui/**/*.py", "tests/**/*.py"]
 alwaysApply: true
 ---
 
 # Python Typing, Linting & Code Discipline
 
-All Python code in `ytmusic-cli` targets **Python 3.11+** and must adhere to strict type checking, linting, and formatting rules.
+All Python code in `ytmusic-tui` targets **Python 3.11+** and must adhere to strict type checking, linting, and formatting rules.
 
 ---
 
@@ -20,7 +20,7 @@ All Python code in `ytmusic-cli` targets **Python 3.11+** and must adhere to str
      from typing import TYPE_CHECKING
 
      if TYPE_CHECKING:
-         from ytmusic_cli.main import YTMusicApp
+         from ytmusic_tui.main import YTMusicApp
      ```
      Annotate variables with string forward references (e.g. `'YTMusicApp'`).
 
@@ -56,9 +56,9 @@ All Python code in `ytmusic-cli` targets **Python 3.11+** and must adhere to str
    - Indent: 4 spaces.
    - Run verification before finishing any change:
      ```bash
-     uv run ruff check --fix ytmusic_cli/ tests/
-     uv run ruff format ytmusic_cli/ tests/
-     uv run mypy ytmusic_cli/ tests/
+     uv run ruff check --fix ytmusic_tui/ tests/
+     uv run ruff format ytmusic_tui/ tests/
+     uv run mypy ytmusic_tui/ tests/
      ```
 
 2. **Error Handling**:

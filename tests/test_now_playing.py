@@ -7,12 +7,12 @@ from textual.app import App, ComposeResult
 from textual.widget import Widget
 from textual.widgets import Static
 
-from ytmusic_cli.music.state import AppState
-from ytmusic_cli.music.types import PlaybackStatus, Song
-from ytmusic_cli.tui.modes.queue import QueueMode
-from ytmusic_cli.tui.widgets.mode_bar import ModeBar
-from ytmusic_cli.tui.widgets.now_playing import NowPlaying
-from ytmusic_cli.tui.widgets.select_list import SelectList
+from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import PlaybackStatus, Song
+from ytmusic_tui.tui.modes.queue import QueueMode
+from ytmusic_tui.tui.widgets.mode_bar import ModeBar
+from ytmusic_tui.tui.widgets.now_playing import NowPlaying
+from ytmusic_tui.tui.widgets.select_list import SelectList
 
 
 class NowPlayingApp(App[None]):
