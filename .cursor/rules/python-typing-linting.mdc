@@ -1,75 +1,30 @@
 ---
-description: Strict typing, linting, formatting, and Python code standards for ytmusic-tui
+description: Typing, imports, ruff, and domain errors
 globs: ["ytmusic_tui/**/*.py", "tests/**/*.py"]
 alwaysApply: true
 ---
 
-# Python Typing, Linting & Code Discipline
+# Python
 
-All Python code in `ytmusic-tui` targets **Python 3.11+** and must adhere to strict type checking, linting, and formatting rules.
+Target is 3.11+. Imports stay at the top of the file. For type-only cycles:
 
----
+```python
+from typing import TYPE_CHECKING
 
-## 1. Imports & Module Hygiene
+if TYPE_CHECKING:
+    from ytmusic_tui.main import YTMusicApp
+```
 
-1. **No Inline Imports**:
-   - All `import` statements must reside at the very top of the module.
-   - Never import inside functions, methods, loops, or type annotations.
-   - If a circular import arises at type-checking time, use:
-     ```python
-     from typing import TYPE_CHECKING
+- Annotate every parameter and return type. Do not use `Any`.
+- Use `A | B`, `T | None`, `list[str]`, `dict[str, int]`, and `typing.Self`.
+- Prefer `collections.abc` (`Callable`, `Sequence`, `Mapping`, `Generator`).
+- Prefer `typing.Protocol` for player, source, and repository seams.
+- Line length 88, double quotes, 4 spaces.
+- No bare `except:` or `except Exception: pass`. Domain errors subclass `YTMusicError`. Chain with `raise DomainError(...) from err`.
+- Do not add unused imports or refactor unrelated files.
 
-     if TYPE_CHECKING:
-         from ytmusic_tui.main import YTMusicApp
-     ```
-     Annotate variables with string forward references (e.g. `'YTMusicApp'`).
-
-2. **Clean Imports**:
-   - Prefer standard library `collections.abc` for collections (`Callable`, `Sequence`, `Mapping`, `Generator`).
-   - Group imports: Standard Library -> Third-Party Libraries -> Local Modules (enforced by Ruff `I` rules).
-
----
-
-## 2. Enforced Typing Discipline
-
-1. **Strict Mypy Compliance**:
-   - Every function and method parameter must have an explicit type annotation.
-   - Every function and method must declare an explicit return type (`-> None`, `-> int`, etc.).
-   - `Any` is considered an anti-pattern. If dynamic dictionary parsing is unavoidable (e.g. raw yt-dlp output), immediately cast or validate into a typed structure (`TypedDict`, `dataclass`, or domain model) at the boundary.
-
-2. **Modern Python 3.11+ Types**:
-   - Use `A | B` instead of `Union[A, B]`.
-   - Use `T | None` instead of `Optional[T]`.
-   - Use built-in generic collections: `list[str]`, `dict[str, int]`, `tuple[int, ...]`.
-   - Use `typing.Self` for methods returning `self`.
-
-3. **Structural Subtyping with Protocols**:
-   - Prefer `typing.Protocol` over concrete inheritance when defining interfaces for external dependencies (e.g. player engines, audio extractors).
-
----
-
-## 3. Linting & Formatting Standards
-
-1. **Ruff Format & Lint**:
-   - Line length: 88 characters.
-   - Double quotes `""` for strings.
-   - Indent: 4 spaces.
-   - Run verification before finishing any change:
-     ```bash
-     uv run ruff check --fix ytmusic_tui/ tests/
-     uv run ruff format ytmusic_tui/ tests/
-     uv run mypy ytmusic_tui/ tests/
-     ```
-
-2. **Error Handling**:
-   - Do NOT use bare `except:` or generic `except Exception: pass`.
-   - Raise custom domain exceptions extending `YTMusicError` (e.g. `StreamExtractionError`, `PlaybackError`, `TrackNotFoundError`).
-   - When catching third-party exceptions, chain with `raise DomainError(...) from err`.
-
----
-
-## 4. Coding Discipline
-
-- **Simplicity First**: Write readable, maintainable, direct code. Do not introduce abstractions for single-use logic.
-- **Surgical Changes**: Do not refactor or reformat unrelated files.
-- **Dead Code**: Clean up unused imports and variables introduced during your changes.
+```bash
+uv run ruff check --fix ytmusic_tui/ tests/
+uv run ruff format ytmusic_tui/ tests/
+uv run mypy ytmusic_tui/ tests/
+```

@@ -1,62 +1,17 @@
 ---
-description: Project management, task breakdowns, acceptance criteria, and Definition of Done
+description: Scope discipline and Definition of Done
 globs: ["*"]
 alwaysApply: true
 ---
 
-# Project Management & Engineering Discipline
+# Scope and Definition of Done
 
-This rule defines project governance, task breakdown criteria, and quality standards for `ytmusic-tui`.
+Implement only what was asked. No speculative features, extra knobs, or drive-by refactors. If something else turns up, leave it for a follow-up.
 
----
+Done means:
 
-## 1. Task Breakdown & Estimation
-
-1. **Atomic Tasks (30-60 Minutes)**:
-   - Break features into small, testable chunks that can be fully completed in a single development session.
-   - Every task must include:
-     - Clear description of the single responsibility.
-     - Files to create or modify.
-     - Acceptance criteria written in **Given / When / Then** format.
-
-2. **Scope Discipline**:
-   - Implement ONLY what is requested in the current task.
-   - Do NOT build speculative features, unnecessary configuration knobs, or premature generalizations.
-   - If an enhancement or missing dependency is identified, log it as a separate follow-up task.
-
----
-
-## 2. Acceptance Criteria Template
-
-```markdown
-### [ ] Task X: [Feature / Component Name]
-**Description**: [One-sentence explanation of what this task delivers]
-
-**Acceptance Criteria**:
-- **Given**: [Initial setup or context]
-- **When**: [Action performed]
-- **Then**: [Expected verifiable outcome]
-
-**Files to Touch**:
-- `ytmusic_tui/...`
-- `tests/test_...`
-```
-
----
-
-## 3. Definition of Done (DoD)
-
-Before any task or pull request is considered complete, the following checklist must be satisfied:
-
-1. **Tests Written & Green**:
-   - Tests were written before the implementation (TDD).
-   - All tests pass: `uv run pytest`.
-   - Zero hard sleeps (`time.sleep` / `asyncio.sleep`) in the test suite.
-2. **Type Checking Clean**:
-   - `uv run mypy ytmusic_tui/ tests/` passes with 0 errors.
-3. **Linting & Formatting Clean**:
-   - `uv run ruff check ytmusic_tui/ tests/` passes.
-   - `uv run ruff format --check ytmusic_tui/ tests/` passes.
-4. **Git Hygiene**:
-   - Follow Conventional Commits: `feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`.
-   - Surgical diffs only (no unrelated whitespace, reordering, or refactoring).
+- Tests first, then `uv run pytest` green. No `time.sleep` or `asyncio.sleep` in tests.
+- `uv run mypy ytmusic_tui/ tests/` clean
+- `uv run ruff check ytmusic_tui/ tests/` and `uv run ruff format --check ytmusic_tui/ tests/` clean
+- Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`)
+- The diff is only the requested change

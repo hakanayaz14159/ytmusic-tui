@@ -1,18 +1,12 @@
 ---
-description: Textual TUI design system, terminal UX navigation, TCSS styling, and responsive terminal layout
+description: Welcome gate, shell layout, keys, and theme tokens
 globs: ["ytmusic_tui/tui/**/*.py", "ytmusic_tui/app.tcss", "ytmusic_tui/theme.py"]
 alwaysApply: true
 ---
 
-# TUI UX & UI Design Rules
+# TUI
 
-The player is a **search-first shell**, not a splash menu. Chrome (mode bar, now-playing, status) is always visible.
-
----
-
-## 1. Information Architecture
-
-Five modes in one `AppShell`. Only Help and small prompts are `ModalScreen`.
+Launch shows `WelcomeScreen` (wordmark, then profiles). Settings can skip it with a startup profile. After that, five modes live in one `AppShell`. Search is home. The welcome screen is a full `Screen`, not a sixth mode. Help and prompts are `ModalScreen`.
 
 ```
 Search  Queue  Playlists  Profiles  Settings              <user>
@@ -25,62 +19,23 @@ Search  Queue  Playlists  Profiles  Settings              <user>
 enter play   a queue   space pause   / search   ? help
 ```
 
-- Landing mode is **Search**.
-- Now-playing is always mounted. Modes never cover it.
+- Now-playing stays in the shell. Modes do not cover it.
 - At width >= 110, a Queue pane docks beside the active mode (hidden when Queue is the mode).
-- No ASCII wordmark. No main menu.
+- Wordmark is the 3-line box-drawing `YTMUSIC` plus `T U I` (one line when height < 24).
 
----
+**Global:** `1`–`5` modes, `Tab` / `Shift+Tab` cycle, `/` search field, `Space` play/pause (types a space in an Input), `+` `=` `-` volume, `>` `<` queue skip, `?` help, `q` quit when not in an Input, `Ctrl+q` always quits, `Esc` blurs search or closes a modal (does not change mode).
 
-## 2. Keyboard
+**Welcome:** `Enter` select, `n` new profile, `q` quit. Player keys do nothing until the screen dismisses.
 
-**Global**
+**Lists:** `j`/`k` or arrows, `Enter` play (playlist Enter loads the queue), `a` append, `A` add to playlist, `d` remove queue item or playlist track, `n` new playlist or profile, `s` save settings.
 
-- `1`–`5`: Search, Queue, Playlists, Profiles, Settings
-- `Tab` / `Shift+Tab`: cycle modes
-- `/`: Search mode and focus the query field
-- `Space`: play / pause (types a space when an Input is focused)
-- `+` / `=` / `-`: volume in 5% steps
-- `>` / `<`: next / previous in the queue
-- `?`: Help modal
-- `q`: quit when focus is not an Input; `Ctrl+q` always quits
-- `Esc`: blur search input or dismiss a modal (does not change mode)
+Colors live in `theme.py` and `app.tcss` only. No hex in Python widgets.
 
-**Lists**
+- Background `#0B0E14`, surface `#141A22`, panel `#1B2330`
+- Foreground `#E8EDF4`, muted `#8B95A5`
+- Primary `#E0B15A`, focus `#6EC8C0`, playing `#3DDC97`
+- Warning `#D89B4A`, error `#E06C75`, border `#2A3444`
 
-- `j` / `k` or arrows: move
-- `Enter`: play now (playlist Enter loads that list into the queue)
-- `a`: append to queue
-- `A`: add to a playlist
-- `d`: remove a queue item or playlist track
-- `n`: new playlist or profile (those modes only)
-- `s`: save settings (Settings mode only)
+Focus: `border: tall $accent`. Playing row: mint `♫`. Minimum 80x24; now-playing is one line when height < 24.
 
----
-
-## 3. Visual system (Ink / Amber / Mint)
-
-Independent of YouTube. Dark-only. Tokens live in `theme.py` and `app.tcss` only — no hex in Python widgets.
-
-- Background: `#0B0E14`
-- Surface: `#141A22`
-- Panel: `#1B2330`
-- Foreground: `#E8EDF4`
-- Muted: `#8B95A5`
-- Primary (selection, active mode): `#E0B15A`
-- Focus: `#6EC8C0`
-- Playing / success: `#3DDC97`
-- Warning: `#D89B4A`
-- Error: `#E06C75`
-- Border: `#2A3444`
-
-Focus: `border: tall $accent` on the focused list or input.
-Playing row: mint `♫` glyph.
-Minimum terminal: 80x24. Now-playing collapses to one line when height < 24.
-
----
-
-## 4. Feedback
-
-- Use `self.notify(..., severity="information"|"warning"|"error")`.
-- No advertised key that `bell()`s. Empty states use copy, not silence.
+Use `self.notify(..., severity=...)`. Do not bind a key that only `bell()`s. Empty lists show a message.

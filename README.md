@@ -15,7 +15,7 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 ## Features
 
 - **Audio-only streaming**: resolves and plays the audio stream, so no bandwidth is spent on video.
-- **Search-first TUI**: search is the landing mode; now-playing chrome stays visible in every mode.
+- **Search-first TUI**: search is the landing mode; the now-playing bar stays visible in every mode.
 - **Playback queue**: play, append, skip, remove, and save the queue as a playlist.
 - **Local playlists**: create, edit, and open playlists backed by a local SQLite database.
 - **Local profiles**: multiple profiles, each with its own preferences and playlists.
@@ -81,7 +81,7 @@ pipx runpip ytmusic-player-cli install -U yt-dlp
 
 ### Your data
 
-Everything lives on your machine. Profiles, playlists, and the track metadata they reference are stored in a single SQLite file in the platform data directory (`~/.local/share/ytmusic-tui/ytmusic.db` on Linux). There is no account, no server, and no telemetry.
+Profiles, playlists, and track metadata stay in a local SQLite file (`~/.local/share/ytmusic-tui/ytmusic.db` on Linux). There is no account, no server, and no telemetry.
 
 File logging is off by default. Enable it when you want to report a bug:
 
@@ -95,7 +95,7 @@ Logs redact query strings from stream URLs and the `Cookie` and `Authorization` 
 
 ## Architecture
 
-The project follows a hexagonal (ports and adapters) layout — the domain core does not import Textual, VLC, yt-dlp, or Peewee:
+Domain types do not import Textual, VLC, yt-dlp, or Peewee:
 
 ```
 ytmusic_tui/
@@ -118,7 +118,7 @@ ytmusic_tui/
 └── main.py         # Application entry point and CLI command
 ```
 
-[`YoutubeDoc.md`](YoutubeDoc.md) explains how search, stream resolution, and the local stream proxy actually work, including why VLC is pointed at a localhost proxy. [`AGENTS.md`](AGENTS.md) is the engineering spec the codebase is held to.
+[`docs/playback.md`](docs/playback.md) covers search, stream URLs, and the localhost proxy VLC uses. Contributor checks are in [`AGENTS.md`](AGENTS.md).
 
 ---
 
@@ -141,7 +141,7 @@ The suite runs fully offline: YouTube and audio adapters are mocked, databases a
 uv run pytest tests/test_youtube_contract.py -m network
 ```
 
-Contributions follow test-first development, strict `mypy`, and Conventional Commits; the details are in [`AGENTS.md`](AGENTS.md).
+Contributions follow test-first development, strict `mypy`, and Conventional Commits. See [`AGENTS.md`](AGENTS.md).
 
 ### Releasing
 

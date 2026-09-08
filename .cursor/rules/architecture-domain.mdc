@@ -1,92 +1,15 @@
 ---
-description: Software architecture, domain boundaries, hexagonal ports and adapters, and state management
+description: Layer boundaries and non-blocking I/O
 globs: ["ytmusic_tui/**/*.py"]
 alwaysApply: true
 ---
 
-# Architecture & Domain Boundary Rules
+# Architecture
 
-`ytmusic-tui` follows a **Hexagonal (Ports & Adapters)** and **Domain-Driven** architectural structure.
+`ytmusic_tui.music.types` must not import Textual, VLC, yt-dlp, or Peewee.
 
----
+Adapters (yt-dlp, VLC, Peewee) implement the protocols in `ytmusic_tui.music.ports`. Services take those protocols. The TUI calls services and reads `AppState`.
 
-## 1. Architectural Layers & Dependency Rule
+`AppState` holds shared observables (`current_song`, `current_user`, `current_playlist`, `playback_state`). Widgets subscribe on mount and unsubscribe on unmount.
 
-Dependencies must point **inward** toward the core domain:
-
-```
-[ Presentation Layer: Textual TUI / Click CLI ]
-                     |
-                     v
-[ Application Layer: Services / Use Cases ]
-                     |
-                     v
-[ Ports: Protocols / Domain Contracts ]
-          ^                     ^
-          |                     |
-[ Infrastructure: Adapters ]    |
-  - yt-dlp (YouTube)            |
-  - python-vlc (Playback)       |
-  - Peewee (SQLite DB)          |
-                     |
-                     v
-[ Domain Layer: Models, Value Objects, Domain Events ]
-```
-
-### Layer Boundaries:
-1. **Domain Layer (`ytmusic_tui.music.types`, domain models)**:
-   - Contains core entities (`Song`, `Playlist`, `User`, `PlaybackState`) and business rules.
-   - **ZERO external dependencies**: Must not import Textual, VLC, yt-dlp, or Peewee.
-2. **Ports (Interfaces)**:
-   - Defined using `typing.Protocol` (e.g. `AudioPlayerProtocol`, `MusicSourceProtocol`, `SongRepositoryProtocol`).
-   - Reside in the application/domain interface modules.
-3. **Infrastructure / Adapters (`ytmusic_tui.music.youtube`, VLC player, DB repositories)**:
-   - Implement the domain ports.
-   - Wrap third-party libraries (`yt-dlp`, `python-vlc`, `peewee`).
-   - Translate external raw dictionaries into domain types at the boundary.
-4. **Application Layer (Services)**:
-   - Orchestrates workflows: `SearchService`, `PlaybackService`, `PlaylistService`.
-   - Injected with adapter implementations via protocols.
-5. **Presentation Layer (`ytmusic_tui.tui.*`)**:
-   - Textual widgets, screens, and TCSS stylesheets.
-   - Dispatches user commands to application services.
-   - Observes state changes reactively.
-
----
-
-## 2. State Management Rules
-
-1. **Unidirectional Reactive State**:
-   - `AppState` (singleton) holds `AtomicData` observables for shared state (`current_song`, `current_user`, `current_playlist`, `playback_state`).
-   - Widgets subscribe to state changes on mount and unsubscribe on unmount to avoid memory leaks.
-2. **Thread Safety & Non-Blocking TUI**:
-   - Long-running network or disk operations (e.g. `youtube.search()`, `youtube.get_stream_url()`, audio downloads) MUST NOT run on Textual's main event loop.
-   - Use Textual's worker decorator `@work(thread=True)` to execute background I/O.
-   - Post results back to widgets or app state via thread-safe callbacks or Textual messages.
-
----
-
-## 3. Contracts at the Edge (Protocols Example)
-
-```python
-from typing import Protocol, runtime_checkable
-from ytmusic_tui.consts import DEFAULT_SUGGEST_LIMIT
-from ytmusic_tui.music.types import AudioStream, Song
-
-@runtime_checkable
-class AudioPlayerProtocol(Protocol):
-    def play(self, url: str) -> None: ...
-    def pause(self) -> None: ...
-    def stop(self) -> None: ...
-    def is_playing(self) -> bool: ...
-    def set_volume(self, volume: int) -> None: ...
-    def get_volume(self) -> int: ...
-
-@runtime_checkable
-class MusicSourceProtocol(Protocol):
- def search(self, query: str, max_results: int = 10) -> list[Song]: ...
- def get_stream(self, video_id: str) -> AudioStream: ...
- def suggest(
-     self, query: str, max_results: int = DEFAULT_SUGGEST_LIMIT
- ) -> list[str]: ...
-```
+Search, stream resolution, and disk I/O run in `@work(thread=True)`, not on the Textual event loop.
