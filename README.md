@@ -68,13 +68,15 @@ Then:
 ytmusic-tui
 ```
 
-From git:
+From git, with whichever installer you prefer:
 
 ```bash
 pipx install git+https://github.com/hakanayaz14159/ytmusic-tui.git
+uv tool install git+https://github.com/hakanayaz14159/ytmusic-tui.git
+pip install git+https://github.com/hakanayaz14159/ytmusic-tui.git
 ```
 
-`pip` and `uv tool` work the same way (`pip install git+https://...` or `pip install .`).
+Or from a checkout: `pip install .`
 
 ---
 
