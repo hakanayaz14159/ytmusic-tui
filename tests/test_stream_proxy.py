@@ -3,12 +3,13 @@
 from collections.abc import Generator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Event, Thread, get_ident
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import pytest
 from pytest_mock import MockerFixture
 
+from ytmusic_tui.music import stream_proxy as stream_proxy_mod
 from ytmusic_tui.music.stream_proxy import AudioStreamProxy
 from ytmusic_tui.music.types import AudioStream
 
@@ -180,3 +181,59 @@ def test_proxy_shutdown_runs_off_the_calling_thread(mocker: MockerFixture) -> No
     finally:
         release.set()
         assert closed.wait(2)
+
+
+def test_proxy_returns_502_when_origin_is_unreachable() -> None:
+    proxy = AudioStreamProxy()
+    try:
+        local_url = proxy.start(AudioStream(url="http://127.0.0.1:1/", http_headers={}))
+        with pytest.raises(HTTPError) as exc_info:
+            urlopen(local_url, timeout=2)
+        assert exc_info.value.code == 502
+    finally:
+        proxy.stop()
+
+
+def test_proxy_client_disconnect_does_not_traceback(
+    origin: Origin,
+    mocker: MockerFixture,
+    caplog: pytest.LogCaptureFixture,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    finished = Event()
+    original_handler = stream_proxy_mod._handler_for
+
+    def handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
+        handler_cls = original_handler(stream)
+
+        class Wrapped(handler_cls):  # type: ignore[misc,valid-type]
+            def setup(self) -> None:
+                super().setup()
+
+                def write(_data: bytes) -> int:
+                    raise BrokenPipeError(32, "Broken pipe")
+
+                self.wfile.write = write
+
+            def handle(self) -> None:
+                try:
+                    super().handle()
+                finally:
+                    finished.set()
+
+        return Wrapped
+
+    mocker.patch.object(stream_proxy_mod, "_handler_for", side_effect=handler_for)
+    proxy = AudioStreamProxy()
+    try:
+        local_url = proxy.start(_stream(origin.url))
+        with pytest.raises((OSError, HTTPError, URLError, ConnectionError)):
+            urlopen(local_url, timeout=2)
+        assert finished.wait(2)
+    finally:
+        proxy.stop()
+
+    captured = capsys.readouterr()
+    assert "BrokenPipeError" not in captured.err
+    assert "Traceback" not in captured.err
+    assert "proxy upstream failed" not in caplog.text

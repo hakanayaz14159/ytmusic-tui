@@ -10,8 +10,8 @@ import pytest
 import vlc
 from pytest_mock import MockerFixture
 
-from ytmusic_tui.exceptions import PlaybackError
-from ytmusic_tui.music.player import VLCPlayer
+from ytmusic_tui.exceptions import PlaybackError, VLCUnavailableError
+from ytmusic_tui.music.player import VLCPlayer, missing_vlc_message
 from ytmusic_tui.music.ports import AudioPlayerProtocol
 from ytmusic_tui.music.types import AudioStream
 from ytmusic_tui.utils.log import configure_logging, reset_logging
@@ -262,3 +262,30 @@ def test_init_wraps_vlc_errors_as_playback_error(mocker: MockerFixture) -> None:
     with pytest.raises(PlaybackError, match="Failed to initialize") as exc_info:
         VLCPlayer()
     assert isinstance(exc_info.value.__cause__, OSError)
+
+
+@pytest.mark.parametrize(
+    ("platform", "snippet"),
+    [
+        ("darwin", "brew install --cask vlc"),
+        ("win32", "videolan.org"),
+        ("linux", "apt install vlc"),
+    ],
+)
+def test_missing_vlc_message_names_platform_install(
+    platform: str,
+    snippet: str,
+) -> None:
+    assert snippet in missing_vlc_message(platform)
+
+
+def test_init_raises_vlc_unavailable_when_libvlc_missing(
+    mocker: MockerFixture,
+) -> None:
+    load_error = OSError("dlopen(libvlccore.dylib): no such file")
+    mocker.patch("ytmusic_tui.music.player.vlc", None)
+    mocker.patch("ytmusic_tui.music.player._VLC_LOAD_ERROR", load_error)
+    with pytest.raises(VLCUnavailableError, match="VLC is required") as exc_info:
+        VLCPlayer()
+    assert exc_info.value.__cause__ is load_error
+    assert "PyPI" in str(exc_info.value)

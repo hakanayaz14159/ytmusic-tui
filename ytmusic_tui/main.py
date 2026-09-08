@@ -24,7 +24,7 @@ from ytmusic_tui.db.repositories import (
     SongRepository,
     UserRepository,
 )
-from ytmusic_tui.exceptions import YTMusicError
+from ytmusic_tui.exceptions import VLCUnavailableError, YTMusicError
 from ytmusic_tui.music.player import VLCPlayer
 from ytmusic_tui.music.services import (
     AccountService,
@@ -743,6 +743,9 @@ def main() -> None:
     except KeyboardInterrupt:
         click.echo("\nGoodbye!")
         sys.exit(0)
+    except VLCUnavailableError as err:
+        click.echo(str(err), err=True)
+        sys.exit(1)
     except Exception as e:
         logger.exception("fatal error")
         click.echo(f"Error: {e}", err=True)

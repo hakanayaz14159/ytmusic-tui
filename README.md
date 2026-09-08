@@ -24,12 +24,15 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 
 ## Roadmap
 
+- Alternate vim-style keys (`p` play, `H`/`L` modes), keeping the current map as default.
+- Resume from the last position, and seeking within a track.
+- Homebrew and Linux packages.
 - Offline downloads and local-file playback.
 - Algorithmic recommendations, possibly.
 
 ## Not implemented
 
-- Seeking within a track, and metadata embedding.
+- Metadata embedding.
 - YouTube sign-in and library sync. Profiles are local; they are not YouTube accounts, so your YouTube library, likes, and history are out of reach.
 
 ---
@@ -37,9 +40,14 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 ## Requirements
 
 - **Python** 3.11 or newer
-- **libVLC** on the system — the `vlc` package on Linux, [VLC](https://www.videolan.org/vlc/) on macOS and Windows
+- **VLC / libVLC** on the system — not installable from PyPI:
 
-Playback needs a system libVLC and a working audio device, not just the `python-vlc` package.
+```bash
+brew install --cask vlc                 # macOS
+sudo apt install vlc                    # Debian/Ubuntu; other distros: the vlc package
+```
+
+On Windows, install [VLC](https://www.videolan.org/vlc/). Playback needs those system libraries and a working audio device, not just the `python-vlc` package.
 
 ---
 

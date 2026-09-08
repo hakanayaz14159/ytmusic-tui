@@ -27,6 +27,11 @@ _SKIP_HTTP_HEADERS = frozenset(
 _FORWARD_RESPONSE_HEADERS = ("Content-Type", "Content-Range", "Content-Length")
 _CHUNK_SIZE = 65536
 _UPSTREAM_TIMEOUT = 30.0
+_CLIENT_DISCONNECT_ERRORS = (
+    BrokenPipeError,
+    ConnectionResetError,
+    ConnectionAbortedError,
+)
 
 
 def _upstream_headers(
@@ -54,6 +59,12 @@ def _handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
         def do_HEAD(self) -> None:
             self._forward("HEAD")
 
+        def handle(self) -> None:
+            try:
+                super().handle()
+            except _CLIENT_DISCONNECT_ERRORS:
+                logger.debug("proxy client disconnected")
+
         def _forward(self, method: str) -> None:
             request = Request(
                 stream["url"],
@@ -79,6 +90,8 @@ def _handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
                             break
                         self.wfile.write(chunk)
                         self.wfile.flush()
+            except _CLIENT_DISCONNECT_ERRORS:
+                logger.debug("proxy client disconnected")
             except HTTPError as err:
                 logger.error(
                     "proxy upstream http %s url=%s range=%s",
@@ -93,8 +106,11 @@ def _handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
                     "proxy upstream failed url=%s",
                     redact_url(stream["url"]),
                 )
-                self.send_response(502)
-                self.end_headers()
+                try:
+                    self.send_response(502)
+                    self.end_headers()
+                except _CLIENT_DISCONNECT_ERRORS:
+                    logger.debug("proxy client disconnected")
 
     return Handler
 

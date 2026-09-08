@@ -9,6 +9,10 @@ class PlaybackError(YTMusicError):
     """Raised when audio playback or the player engine fails."""
 
 
+class VLCUnavailableError(PlaybackError):
+    """Raised when libVLC is missing or cannot be loaded."""
+
+
 class StreamExtractionError(YTMusicError):
     """Raised when stream URL or metadata extraction fails."""
 

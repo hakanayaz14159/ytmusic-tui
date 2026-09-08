@@ -1,15 +1,42 @@
 """VLC-backed audio player adapter."""
 
 import logging
+import sys
 
-import vlc
-
-from ytmusic_tui.exceptions import PlaybackError
+from ytmusic_tui.exceptions import PlaybackError, VLCUnavailableError
 from ytmusic_tui.music.stream_proxy import AudioStreamProxy
 from ytmusic_tui.music.types import AudioStream
 from ytmusic_tui.utils.log import redact_url, vlc_log_file_path
 
 logger = logging.getLogger(__name__)
+
+try:
+    import vlc
+except (OSError, NotImplementedError) as err:
+    vlc = None
+    _VLC_LOAD_ERROR: BaseException | None = err
+else:
+    _VLC_LOAD_ERROR = None
+
+
+def missing_vlc_message(platform: str | None = None) -> str:
+    plat = sys.platform if platform is None else platform
+    if plat == "darwin":
+        install = "brew install --cask vlc"
+    elif plat.startswith("win"):
+        install = "install VLC from https://www.videolan.org/vlc/"
+    else:
+        install = "sudo apt install vlc  # or your distro's vlc package"
+    return (
+        "VLC is required for playback but was not found on this system.\n"
+        f"Install it, then run ytmusic-tui again: {install}\n"
+        "The VLC libraries cannot be installed from PyPI."
+    )
+
+
+def _require_vlc() -> None:
+    if vlc is None:
+        raise VLCUnavailableError(missing_vlc_message()) from _VLC_LOAD_ERROR
 
 
 def _instance_args() -> list[str]:
@@ -29,6 +56,8 @@ def _instance_args() -> list[str]:
 
 
 def _vlc_version() -> str:
+    if vlc is None:
+        return "unavailable"
     getter = getattr(vlc, "libvlc_get_version", None)
     if getter is None:
         return "unknown"
@@ -43,6 +72,8 @@ class VLCPlayer:
 
     def __init__(self) -> None:
         self._proxy = AudioStreamProxy()
+        _require_vlc()
+        assert vlc is not None
         try:
             args = _instance_args()
             logger.info("vlc init args=%s version=%s", args, _vlc_version())
@@ -127,22 +158,24 @@ class VLCPlayer:
 
     def has_ended(self) -> bool:
         try:
-            return bool(self._player.get_state() == vlc.State.Ended)
+            return self._state_name() == "Ended"
         except Exception as err:
             logger.exception("has_ended failed")
             raise PlaybackError("Failed to query playback end state") from err
 
     def has_failed(self) -> bool:
         try:
-            return bool(self._player.get_state() == vlc.State.Error)
+            return self._state_name() == "Error"
         except Exception as err:
             logger.exception("has_failed failed")
             raise PlaybackError("Failed to query playback error state") from err
 
     def engine_state(self) -> str:
         try:
-            state = self._player.get_state()
-            return str(state).rsplit(".", 1)[-1]
+            return self._state_name()
         except Exception as err:
             logger.exception("engine_state failed")
             raise PlaybackError("Failed to query engine state") from err
+
+    def _state_name(self) -> str:
+        return str(self._player.get_state()).rsplit(".", 1)[-1]

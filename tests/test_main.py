@@ -15,7 +15,9 @@ from ytmusic_tui import __version__
 from ytmusic_tui.consts import DEFAULT_USERNAME
 from ytmusic_tui.db.bootstrap import bootstrap
 from ytmusic_tui.db.user import User
+from ytmusic_tui.exceptions import VLCUnavailableError
 from ytmusic_tui.main import build_production_app, main
+from ytmusic_tui.music.player import missing_vlc_message
 from ytmusic_tui.music.services import (
     AccountService,
     PlaybackService,
@@ -126,3 +128,18 @@ def test_main_fatal_path_exits_one(mocker: MockerFixture) -> None:
     result = runner.invoke(main, [])
     assert result.exit_code == 1
     assert "boom" in result.output
+
+
+def test_main_missing_vlc_prints_install_hint(mocker: MockerFixture) -> None:
+    mocker.patch("ytmusic_tui.main.configure_logging", return_value=None)
+    mocker.patch("ytmusic_tui.main.bootstrap")
+    mocker.patch("ytmusic_tui.main.Youtube")
+    mocker.patch(
+        "ytmusic_tui.main.VLCPlayer",
+        side_effect=VLCUnavailableError(missing_vlc_message("darwin")),
+    )
+    result = CliRunner().invoke(main, [])
+    assert result.exit_code == 1
+    assert "VLC is required" in result.output
+    assert "brew install --cask vlc" in result.output
+    assert "Traceback" not in result.output
