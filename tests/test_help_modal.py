@@ -6,7 +6,7 @@ import pytest
 
 from tests.conftest import make_test_app
 from ytmusic_tui.tui.app import YTMusicApp
-from ytmusic_tui.tui.modals.help import HelpModal
+from ytmusic_tui.tui.modals.help import HelpModal, HelpScroll
 
 
 def _app() -> YTMusicApp:
@@ -65,7 +65,36 @@ async def test_help_can_scroll_to_all_keys_on_small_terminal() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         app.push_screen(HelpModal())
         await pilot.pause()
-        panel = app.screen.query_one("#help_panel")
+        panel = app.screen.query_one("#help_panel", HelpScroll)
         panel.scroll_end(animate=False)
         await pilot.pause()
         assert panel.scroll_y > 0
+
+
+@pytest.mark.asyncio
+async def test_help_scrolls_with_vim_keys() -> None:
+    app = _app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        app.push_screen(HelpModal())
+        await pilot.pause()
+        panel = app.screen.query_one("#help_panel", HelpScroll)
+        await pilot.pause()
+        assert panel.scroll_y == 0
+
+        await pilot.press("j")
+        await pilot.pause()
+        after_j = panel.scroll_y
+        assert after_j > 0
+
+        await pilot.press("k")
+        await pilot.pause()
+        assert panel.scroll_y < after_j
+
+        await pilot.press("G")
+        await pilot.pause()
+        at_end = panel.scroll_y
+        assert at_end > 0
+
+        await pilot.press("g")
+        await pilot.pause()
+        assert panel.scroll_y < at_end
