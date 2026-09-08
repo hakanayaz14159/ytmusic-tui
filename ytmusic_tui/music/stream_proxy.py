@@ -4,6 +4,7 @@ import logging
 from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Thread
+from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -11,6 +12,29 @@ from ytmusic_tui.music.types import AudioStream
 from ytmusic_tui.utils.log import redact_url
 
 logger = logging.getLogger(__name__)
+
+_CLIENT_GONE: tuple[
+    type[BrokenPipeError],
+    type[ConnectionResetError],
+    type[ConnectionAbortedError],
+] = (
+    BrokenPipeError,
+    ConnectionResetError,
+    ConnectionAbortedError,
+)
+
+
+class _Writable(Protocol):
+    def write(self, data: bytes) -> int: ...
+
+    def flush(self) -> None: ...
+
+
+class _HTTPStatusWriter(Protocol):
+    def send_response(self, code: int, message: str | None = None) -> None: ...
+
+    def end_headers(self) -> None: ...
+
 
 _SKIP_HTTP_HEADERS = frozenset(
     {
@@ -24,14 +48,13 @@ _SKIP_HTTP_HEADERS = frozenset(
         "content-length",
     }
 )
-_FORWARD_RESPONSE_HEADERS = ("Content-Type", "Content-Range", "Content-Length")
+_FORWARD_RESPONSE_HEADERS: tuple[str, str, str] = (
+    "Content-Type",
+    "Content-Range",
+    "Content-Length",
+)
 _CHUNK_SIZE = 65536
 _UPSTREAM_TIMEOUT = 30.0
-_CLIENT_DISCONNECT_ERRORS = (
-    BrokenPipeError,
-    ConnectionResetError,
-    ConnectionAbortedError,
-)
 
 
 def _upstream_headers(
@@ -48,6 +71,24 @@ def _upstream_headers(
     return headers
 
 
+def _write_body(wfile: _Writable, data: bytes) -> bool:
+    try:
+        wfile.write(data)
+        wfile.flush()
+    except _CLIENT_GONE:
+        logger.debug("proxy client disconnected")
+        return False
+    return True
+
+
+def _send_status(handler: _HTTPStatusWriter, code: int) -> None:
+    try:
+        handler.send_response(code)
+        handler.end_headers()
+    except _CLIENT_GONE:
+        logger.debug("proxy client disconnected")
+
+
 def _handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args: object) -> None:
@@ -62,7 +103,7 @@ def _handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
         def handle(self) -> None:
             try:
                 super().handle()
-            except _CLIENT_DISCONNECT_ERRORS:
+            except _CLIENT_GONE:
                 logger.debug("proxy client disconnected")
 
         def _forward(self, method: str) -> None:
@@ -88,9 +129,9 @@ def _handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
                         chunk = upstream.read(_CHUNK_SIZE)
                         if not chunk:
                             break
-                        self.wfile.write(chunk)
-                        self.wfile.flush()
-            except _CLIENT_DISCONNECT_ERRORS:
+                        if not _write_body(self.wfile, chunk):
+                            return
+            except _CLIENT_GONE:
                 logger.debug("proxy client disconnected")
             except HTTPError as err:
                 logger.error(
@@ -99,18 +140,13 @@ def _handler_for(stream: AudioStream) -> type[BaseHTTPRequestHandler]:
                     redact_url(stream["url"]),
                     self.headers.get("Range"),
                 )
-                self.send_response(err.code)
-                self.end_headers()
+                _send_status(self, err.code)
             except (URLError, OSError, TimeoutError):
                 logger.exception(
                     "proxy upstream failed url=%s",
                     redact_url(stream["url"]),
                 )
-                try:
-                    self.send_response(502)
-                    self.end_headers()
-                except _CLIENT_DISCONNECT_ERRORS:
-                    logger.debug("proxy client disconnected")
+                _send_status(self, 502)
 
     return Handler
 

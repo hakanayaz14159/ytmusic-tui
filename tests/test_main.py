@@ -17,7 +17,7 @@ from ytmusic_tui.db.bootstrap import bootstrap
 from ytmusic_tui.db.user import User
 from ytmusic_tui.exceptions import VLCUnavailableError
 from ytmusic_tui.main import build_production_app, main
-from ytmusic_tui.music.player import missing_vlc_message
+from ytmusic_tui.music.player import _missing_vlc_message
 from ytmusic_tui.music.services import (
     AccountService,
     PlaybackService,
@@ -136,7 +136,7 @@ def test_main_missing_vlc_prints_install_hint(mocker: MockerFixture) -> None:
     mocker.patch("ytmusic_tui.main.Youtube")
     mocker.patch(
         "ytmusic_tui.main.VLCPlayer",
-        side_effect=VLCUnavailableError(missing_vlc_message("darwin")),
+        side_effect=VLCUnavailableError(_missing_vlc_message("darwin")),
     )
     result = CliRunner().invoke(main, [])
     assert result.exit_code == 1

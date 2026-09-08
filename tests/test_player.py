@@ -11,10 +11,16 @@ import vlc
 from pytest_mock import MockerFixture
 
 from ytmusic_tui.exceptions import PlaybackError, VLCUnavailableError
-from ytmusic_tui.music.player import VLCPlayer, missing_vlc_message
+from ytmusic_tui.music.player import VLCPlayer, _missing_vlc_message
 from ytmusic_tui.music.ports import AudioPlayerProtocol
 from ytmusic_tui.music.types import AudioStream
 from ytmusic_tui.utils.log import configure_logging, reset_logging
+
+
+def _mocked_instance(player: VLCPlayer) -> MagicMock:
+    instance = player._instance
+    assert isinstance(instance, MagicMock)
+    return instance
 
 
 @pytest.fixture
@@ -85,11 +91,12 @@ def test_play_uses_proxy_url_not_cdn(mock_vlc: MagicMock) -> None:
     }
     try:
         player.play(stream)
-        local_url = player._instance.media_new.call_args[0][0]
+        media_new = _mocked_instance(player).media_new
+        local_url = media_new.call_args[0][0]
         assert isinstance(local_url, str)
         assert local_url.startswith("http://127.0.0.1:")
         assert "stream.example.com" not in local_url
-        mock_media = player._instance.media_new.return_value
+        mock_media = media_new.return_value
         extra_calls = [call.args[0] for call in mock_media.add_option.call_args_list]
         assert not any("http-extra-header" in option for option in extra_calls)
         mock_vlc.set_media.assert_called_once_with(mock_media)
@@ -105,7 +112,7 @@ def test_stop_tears_down_proxy(mock_vlc: MagicMock, mocker: MockerFixture) -> No
         "http_headers": {},
     }
     player.play(stream)
-    local_url = player._instance.media_new.call_args[0][0]
+    local_url = _mocked_instance(player).media_new.call_args[0][0]
     assert isinstance(local_url, str)
     assert local_url.startswith("http://127.0.0.1:")
     server = player._proxy._server
@@ -276,7 +283,7 @@ def test_missing_vlc_message_names_platform_install(
     platform: str,
     snippet: str,
 ) -> None:
-    assert snippet in missing_vlc_message(platform)
+    assert snippet in _missing_vlc_message(platform)
 
 
 def test_init_raises_vlc_unavailable_when_libvlc_missing(

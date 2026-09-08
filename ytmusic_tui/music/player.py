@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from typing import Protocol
 
 from ytmusic_tui.exceptions import PlaybackError, VLCUnavailableError
 from ytmusic_tui.music.stream_proxy import AudioStreamProxy
@@ -10,16 +11,59 @@ from ytmusic_tui.utils.log import redact_url, vlc_log_file_path
 
 logger = logging.getLogger(__name__)
 
+_VLC_LOAD_ERROR: OSError | NotImplementedError | None = None
+
+
+class _VLCMedia(Protocol):
+    """Opaque libvlc media handle."""
+
+
+class _VLCState(Protocol):
+    def __str__(self) -> str: ...
+
+
+class _VLCMediaPlayer(Protocol):
+    def set_media(self, media: _VLCMedia) -> None: ...
+
+    def play(self) -> int: ...
+
+    def pause(self) -> None: ...
+
+    def stop(self) -> None: ...
+
+    def is_playing(self) -> int: ...
+
+    def audio_set_volume(self, volume: int) -> int: ...
+
+    def audio_get_volume(self) -> int: ...
+
+    def get_time(self) -> int: ...
+
+    def get_state(self) -> _VLCState: ...
+
+
+class _VLCInstance(Protocol):
+    def media_player_new(self) -> _VLCMediaPlayer: ...
+
+    def media_new(self, url: str) -> _VLCMedia: ...
+
+
+class _VLCModule(Protocol):
+    def Instance(self, *args: str) -> _VLCInstance: ...
+
+
+vlc: _VLCModule | None
 try:
-    import vlc
+    import vlc as _imported_vlc
 except (OSError, NotImplementedError) as err:
     vlc = None
-    _VLC_LOAD_ERROR: BaseException | None = err
+    _VLC_LOAD_ERROR = err
 else:
+    vlc = _imported_vlc
     _VLC_LOAD_ERROR = None
 
 
-def missing_vlc_message(platform: str | None = None) -> str:
+def _missing_vlc_message(platform: str | None = None) -> str:
     plat = sys.platform if platform is None else platform
     if plat == "darwin":
         install = "brew install --cask vlc"
@@ -34,9 +78,11 @@ def missing_vlc_message(platform: str | None = None) -> str:
     )
 
 
-def _require_vlc() -> None:
-    if vlc is None:
-        raise VLCUnavailableError(missing_vlc_message()) from _VLC_LOAD_ERROR
+def _require_vlc() -> _VLCModule:
+    loaded = vlc
+    if loaded is None:
+        raise VLCUnavailableError(_missing_vlc_message()) from _VLC_LOAD_ERROR
+    return loaded
 
 
 def _instance_args() -> list[str]:
@@ -55,10 +101,8 @@ def _instance_args() -> list[str]:
     return args
 
 
-def _vlc_version() -> str:
-    if vlc is None:
-        return "unavailable"
-    getter = getattr(vlc, "libvlc_get_version", None)
+def _vlc_version(lib: _VLCModule) -> str:
+    getter = getattr(lib, "libvlc_get_version", None)
     if getter is None:
         return "unknown"
     raw = getter()
@@ -72,12 +116,11 @@ class VLCPlayer:
 
     def __init__(self) -> None:
         self._proxy = AudioStreamProxy()
-        _require_vlc()
-        assert vlc is not None
+        libvlc = _require_vlc()
         try:
             args = _instance_args()
-            logger.info("vlc init args=%s version=%s", args, _vlc_version())
-            self._instance = vlc.Instance(*args)
+            logger.info("vlc init args=%s version=%s", args, _vlc_version(libvlc))
+            self._instance = libvlc.Instance(*args)
             self._player = self._instance.media_player_new()
         except Exception as err:
             logger.exception("vlc init failed")

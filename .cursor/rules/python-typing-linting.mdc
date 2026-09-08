@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 - Annotate every parameter and return type. Do not use `Any`.
 - Use `A | B`, `T | None`, `list[str]`, `dict[str, int]`, and `typing.Self`.
+- `dict`, `tuple`, and `list` are fine when they are the real shape. Do not use them (or `object`) as the easy path when a tighter type exists — TypedDict / dataclass / Protocol, `tuple[int, str]`, `list[Song]`.
 - Prefer `collections.abc` (`Callable`, `Sequence`, `Mapping`, `Generator`).
 - Prefer `typing.Protocol` for player, source, and repository seams.
 - Line length 88, double quotes, 4 spaces.
