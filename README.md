@@ -15,7 +15,7 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 ## Features
 
 - **Audio-only streaming**: resolves and plays the audio stream, so no bandwidth is spent on video.
-- **Search-first TUI**: search is the landing mode; the now-playing bar stays visible in every mode.
+- **Search-first TUI**: pick a profile on launch (or skip that screen in Settings); search is the landing mode and the now-playing bar stays visible in every mode.
 - **Playback queue**: play, append, skip, remove, and save the queue as a playlist.
 - **Local playlists**: create, edit, and open playlists backed by a local SQLite database.
 - **Local profiles**: multiple profiles, each with its own preferences and playlists.
@@ -69,7 +69,7 @@ ytmusic-tui --version
 ytmusic-tui --help
 ```
 
-Press `?` in the app for the keymap: `1`–`5` switch modes and `/` jumps to the query field.
+On launch, choose a profile (`enter` to continue, `n` for a new one). In Settings you can pick a startup profile and skip that screen. Press `?` in the player for the keymap: `1`–`5` switch modes and `/` jumps to the query field.
 
 When YouTube breaks stream extraction, refresh yt-dlp inside the pipx environment:
 
