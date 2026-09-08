@@ -40,7 +40,7 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 - **libVLC** on the system — the `vlc` package on Linux, [VLC](https://www.videolan.org/vlc/) on macOS and Windows
 - **[pipx](https://pipx.pypa.io/)** (recommended) to install the player in its own environment
 
-`python-vlc` is only a binding; playback fails without a system libVLC and a working audio device. You do not need [uv](https://docs.astral.sh/uv/) to install or run the player; uv is for contributors.
+Playback needs a system libVLC and a working audio device, not just the `python-vlc` package.
 
 ---
 
@@ -51,7 +51,7 @@ pipx install ytmusic-player-cli
 ytmusic-tui
 ```
 
-From git, still without uv:
+From git:
 
 ```bash
 pipx install git+https://github.com/hakanayaz14159/ytmusic-tui.git
@@ -79,79 +79,17 @@ pipx upgrade ytmusic-player-cli
 pipx runpip ytmusic-player-cli install -U yt-dlp
 ```
 
-### Your data
-
 Profiles, playlists, and track metadata stay in a local SQLite file (`~/.local/share/ytmusic-tui/ytmusic.db` on Linux). There is no account, no server, and no telemetry.
 
-File logging is off by default. Enable it when you want to report a bug:
-
 ```bash
-YTMUSIC_LOG=1 ytmusic-tui   # writes a timestamped log next to the database
+YTMUSIC_LOG=1 ytmusic-tui   # optional debug log, next to the database
 ```
-
-Logs redact query strings from stream URLs and the `Cookie` and `Authorization` headers, but skim a log before attaching it to an issue.
 
 ---
 
-## Architecture
+## Contributing
 
-Domain types do not import Textual, VLC, yt-dlp, or Peewee:
-
-```
-ytmusic_tui/
-├── db/             # Persistence adapters (Peewee SQLite models & repositories)
-│   ├── user.py     # Profile & user account entities
-│   ├── playlist.py # Playlists & track associations
-│   └── song.py     # Track metadata persistence
-├── music/          # Domain types, ports, services, external adapters
-│   ├── types.py    # Domain models and TypedDicts
-│   ├── ports.py    # Protocols implemented by the adapters
-│   ├── services.py # Search, playback, playlist, account, settings use cases
-│   ├── youtube.py  # yt-dlp adapter for search and stream extraction
-│   ├── stream_proxy.py # Local HTTP bridge for stream request headers
-│   └── state.py    # Reactive application state
-├── tui/            # Presentation layer (Textual shell, modes, widgets)
-│   ├── shell.py    # Persistent chrome: modes, now-playing, status
-│   ├── modes/      # Search, Queue, Playlists, Profiles, Settings
-│   ├── widgets/    # Mode bar, song table, now playing
-│   └── modals/     # Help, prompts, confirmations
-└── main.py         # Application entry point and CLI command
-```
-
-[`docs/playback.md`](docs/playback.md) covers search, stream URLs, and the localhost proxy VLC uses. Contributor checks are in [`AGENTS.md`](AGENTS.md).
-
----
-
-## Development
-
-Contributors can use [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv sync --all-groups
-make test        # uv run pytest
-make test-cov    # coverage report
-make lint        # ruff format --check, ruff check, mypy
-make format      # ruff format + ruff check --fix
-make dev         # textual run --dev for the live console
-```
-
-The suite runs fully offline: YouTube and audio adapters are mocked, databases are in-memory SQLite, and the TUI is driven by Textual's headless pilot. The handful of live YouTube contract checks are opt-in because they depend on the network and on YouTube not having changed:
-
-```bash
-uv run pytest tests/test_youtube_contract.py -m network
-```
-
-Contributions follow test-first development, strict `mypy`, and Conventional Commits. See [`AGENTS.md`](AGENTS.md).
-
-### Releasing
-
-PyPI accepts each version once. A GitHub Release whose tag matches `__version__` (for example `v0.1.1` after bumping [`ytmusic_tui/__init__.py`](ytmusic_tui/__init__.py) to `0.1.1`) runs [`.github/workflows/publish.yml`](.github/workflows/publish.yml) and uploads the wheel.
-
----
-
-## Project status
-
-Alpha, and a personal project I maintain for my own listening. Bug reports and pull requests are welcome, but there is no roadmap, no release schedule, and no support commitment. Since playback depends on yt-dlp keeping up with YouTube, expect the occasional breakage and keep `yt-dlp` up to date (`pipx upgrade ytmusic-player-cli`, or `uv lock --upgrade-package yt-dlp` in a contributor checkout).
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
