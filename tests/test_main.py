@@ -90,10 +90,9 @@ def test_bootstrap_creates_default_user(
     monkeypatch.setattr("ytmusic_tui.db.bootstrap.APP_DIR", tmp_path)
     monkeypatch.setattr("ytmusic_tui.db.bootstrap.DB_PATH", tmp_path / "ytmusic.db")
     bootstrap()
-    user = AppState().current_user.get()
-    assert user is not None
-    assert user["username"] == DEFAULT_USERNAME
+    assert AppState().current_user.get() is None
     assert User.select().count() >= 1
+    assert User.get().username == DEFAULT_USERNAME
 
 
 def test_build_production_app_wires_services(mocker: MockerFixture) -> None:

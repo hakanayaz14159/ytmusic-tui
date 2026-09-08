@@ -8,19 +8,20 @@ from pytest_mock import MockerFixture
 
 from tests.conftest import make_test_app
 from ytmusic_tui.consts import WIDE_LAYOUT_COLUMNS
-from ytmusic_tui.db.repositories import UserRepository
+from ytmusic_tui.db.repositories import AppConfigRepository, UserRepository
 from ytmusic_tui.exceptions import ValidationError
 from ytmusic_tui.music.services import AccountService, SettingsService
 from ytmusic_tui.music.state import AppState
 from ytmusic_tui.music.types import User, UserSettings
 from ytmusic_tui.tui.modes.settings import SettingsMode
 from ytmusic_tui.tui.shell import AppShell
+from ytmusic_tui.tui.widgets.select_list import SelectList
 
 
 def test_settings_save_round_trip(test_db: SqliteDatabase) -> None:
     state = AppState()
     users = UserRepository()
-    accounts = AccountService(users, state)
+    accounts = AccountService(users, state, AppConfigRepository())
     settings = SettingsService(users, state)
     user = accounts.create_user("hzf")
     accounts.select_user(user["id"])
@@ -33,7 +34,7 @@ def test_settings_save_round_trip(test_db: SqliteDatabase) -> None:
 def test_settings_reject_out_of_range(test_db: SqliteDatabase) -> None:
     state = AppState()
     users = UserRepository()
-    accounts = AccountService(users, state)
+    accounts = AccountService(users, state, AppConfigRepository())
     settings = SettingsService(users, state)
     user = accounts.create_user("hzf")
     accounts.select_user(user["id"])
@@ -49,7 +50,7 @@ def test_settings_save_does_not_reselect_profile_after_switch(
 ) -> None:
     state = AppState()
     users = UserRepository()
-    accounts = AccountService(users, state)
+    accounts = AccountService(users, state, AppConfigRepository())
     settings = SettingsService(users, state)
     first = accounts.create_user("first")
     second = accounts.create_user("second")
@@ -75,9 +76,16 @@ def test_settings_save_does_not_reselect_profile_after_switch(
 async def test_settings_mode_opens() -> None:
     playback = MagicMock()
     playback.sync_playback = MagicMock()
+    accounts = MagicMock()
+    accounts.get_startup.return_value = {
+        "skip_welcome": False,
+        "default_user_id": None,
+    }
+    accounts.list_users.return_value = []
     app = make_test_app(
         search_service=MagicMock(),
         playback_service=playback,
+        account_service=accounts,
     )
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -94,7 +102,7 @@ async def test_settings_adjust_and_save(
 ) -> None:
     state = AppState()
     users = UserRepository()
-    accounts = AccountService(users, state)
+    accounts = AccountService(users, state, AppConfigRepository())
     user = accounts.create_user("hzf")
     accounts.select_user(user["id"])
     settings = SettingsService(users, state)
@@ -105,15 +113,50 @@ async def test_settings_adjust_and_save(
         await pilot.press("escape")
         await pilot.pause()
         await pilot.press("5")
-        await pilot.pause()
+        await app.workers.wait_for_complete()
         await pilot.pause()
         app.query_one(SettingsMode).action_adjust_up()
         await pilot.pause()
         app.query_one(SettingsMode).action_save()
-        await pilot.pause()
+        await app.workers.wait_for_complete()
         await pilot.pause()
         saved = settings.get()
         assert saved["default_volume"] == 85
+
+
+@pytest.mark.asyncio
+async def test_settings_toggle_skip_welcome_and_startup_profile(
+    test_db: SqliteDatabase,
+) -> None:
+    state = AppState()
+    users = UserRepository()
+    accounts = AccountService(users, state, AppConfigRepository())
+    first = accounts.create_user("alpha")
+    second = accounts.create_user("beta")
+    accounts.select_user(first["id"])
+    settings = SettingsService(users, state)
+    app = make_test_app(account_service=accounts, settings_service=settings)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("5")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        mode = app.query_one(SettingsMode)
+        option_list = mode.query_one("#settings_list", SelectList)
+        option_list.highlighted = 2
+        mode.action_adjust_up()
+        option_list.highlighted = 3
+        mode.action_adjust_up()
+        await pilot.pause()
+        mode.action_save()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        startup = accounts.get_startup()
+        assert startup["skip_welcome"] is True
+        assert startup["default_user_id"] == second["id"]
 
 
 @pytest.mark.asyncio

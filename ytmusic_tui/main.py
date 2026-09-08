@@ -19,6 +19,7 @@ from textual.worker import Worker
 from ytmusic_tui import __version__
 from ytmusic_tui.db.bootstrap import bootstrap
 from ytmusic_tui.db.repositories import (
+    AppConfigRepository,
     PlaylistRepository,
     SongRepository,
     UserRepository,
@@ -47,6 +48,7 @@ from ytmusic_tui.tui.modals.confirm import ConfirmModal
 from ytmusic_tui.tui.modals.help import HelpModal
 from ytmusic_tui.tui.modals.prompt import PromptModal
 from ytmusic_tui.tui.shell import AppShell
+from ytmusic_tui.tui.welcome import WelcomeScreen
 from ytmusic_tui.tui.widgets.song_table import SongTable
 from ytmusic_tui.utils.log import configure_logging
 
@@ -87,6 +89,8 @@ class YTMusicApp(App[None]):
         account_service: AccountService,
         playlist_service: PlaylistService,
         settings_service: SettingsService,
+        *,
+        show_welcome: bool | None = None,
     ) -> None:
         super().__init__()
         self.register_theme(ytmusic_theme)
@@ -96,6 +100,7 @@ class YTMusicApp(App[None]):
         self.account_service = account_service
         self.playlist_service = playlist_service
         self.settings_service = settings_service
+        self._show_welcome = show_welcome
         self._playback_generation = 0
         self._playback_pending = False
         self._pending_index: int | None = None
@@ -104,6 +109,38 @@ class YTMusicApp(App[None]):
 
     def on_mount(self) -> None:
         self.set_interval(1.0, self._on_playback_tick)
+        if self._show_welcome is False:
+            return
+        if self._show_welcome is True:
+            self.push_screen(WelcomeScreen(), self._on_welcome_done)
+            return
+        self._apply_startup_or_welcome()
+
+    @work(thread=True, exclusive=True, group="startup")
+    def _apply_startup_or_welcome(self) -> None:
+        try:
+            startup = self.account_service.get_startup()
+        except YTMusicError:
+            logger.exception("startup settings load failed")
+            self.call_from_thread(self._open_welcome)
+            return
+        user_id = startup["default_user_id"]
+        if startup["skip_welcome"] and user_id is not None:
+            try:
+                self.account_service.select_user(user_id)
+                return
+            except YTMusicError:
+                logger.exception("startup profile select failed id=%s", user_id)
+        self.call_from_thread(self._open_welcome)
+
+    def _open_welcome(self) -> None:
+        self.push_screen(WelcomeScreen(), self._on_welcome_done)
+
+    def _on_welcome_done(self, user: User | None) -> None:
+        if user is None:
+            self.exit()
+            return
+        self.query_one("#search_input", Input).focus()
 
     async def on_unmount(self) -> None:
         self._closing = True
@@ -119,7 +156,9 @@ class YTMusicApp(App[None]):
                 logger.exception("player shutdown failed")
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if isinstance(self.screen, ModalScreen) and action != "force_quit":
+        if action == "force_quit":
+            return super().check_action(action, parameters)
+        if isinstance(self.screen, ModalScreen | WelcomeScreen):
             return False
         return super().check_action(action, parameters)
 
@@ -678,7 +717,7 @@ def build_production_app() -> YTMusicApp:
     return YTMusicApp(
         search_service=SearchService(source),
         playback_service=PlaybackService(player, source, state),
-        account_service=AccountService(users, state),
+        account_service=AccountService(users, state, AppConfigRepository()),
         playlist_service=PlaylistService(PlaylistRepository(SongRepository()), state),
         settings_service=SettingsService(users, state),
     )

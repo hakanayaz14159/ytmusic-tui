@@ -3,9 +3,10 @@ import logging
 from peewee import OperationalError
 
 from ytmusic_tui.consts import APP_DIR, DB_PATH
+from ytmusic_tui.db.app_config import AppConfig
 from ytmusic_tui.db.db import db
 from ytmusic_tui.db.playlist import Playlist
-from ytmusic_tui.db.repositories import UserRepository
+from ytmusic_tui.db.repositories import AppConfigRepository, UserRepository
 from ytmusic_tui.db.song import Song
 from ytmusic_tui.db.user import User
 from ytmusic_tui.exceptions import DatabaseError
@@ -14,7 +15,7 @@ from ytmusic_tui.music.state import AppState
 
 logger = logging.getLogger(__name__)
 
-_MODELS = [User, Song, Playlist, Playlist.songs.get_through_model()]
+_MODELS = [User, Song, Playlist, Playlist.songs.get_through_model(), AppConfig]
 
 
 def bootstrap() -> None:
@@ -28,6 +29,9 @@ def bootstrap() -> None:
     except (OperationalError, OSError) as err:
         logger.exception("database bootstrap failed")
         raise DatabaseError("database bootstrap failed") from err
-    account_service = AccountService(UserRepository(), AppState())
-    user = account_service.ensure_default_user()
-    account_service.select_user(user["id"])
+    account_service = AccountService(
+        UserRepository(),
+        AppState(),
+        AppConfigRepository(),
+    )
+    account_service.ensure_default_user()

@@ -11,6 +11,7 @@ from textual.widgets import Input
 from tests.conftest import make_test_app
 from ytmusic_tui.consts import DEFAULT_USERNAME
 from ytmusic_tui.db.repositories import (
+    AppConfigRepository,
     PlaylistRepository,
     SongRepository,
     UserRepository,
@@ -26,9 +27,13 @@ from ytmusic_tui.tui.shell import AppShell
 from ytmusic_tui.tui.widgets.select_list import SelectList
 
 
+def _accounts() -> AccountService:
+    return AccountService(UserRepository(), AppState(), AppConfigRepository())
+
+
 @pytest.fixture
 def account_service(test_db: SqliteDatabase) -> AccountService:
-    return AccountService(UserRepository(), AppState())
+    return _accounts()
 
 
 def test_ensure_default_user_creates_local(
@@ -106,12 +111,46 @@ def test_empty_username_rejected(account_service: AccountService) -> None:
         account_service.create_user("   ")
 
 
+def test_get_startup_defaults_when_unset(account_service: AccountService) -> None:
+    assert account_service.get_startup() == {
+        "skip_welcome": False,
+        "default_user_id": None,
+    }
+
+
+def test_save_startup_round_trip(account_service: AccountService) -> None:
+    user = account_service.create_user("hzf")
+    saved = account_service.save_startup(
+        {"skip_welcome": True, "default_user_id": user["id"]}
+    )
+    assert saved == {"skip_welcome": True, "default_user_id": user["id"]}
+    assert account_service.get_startup() == saved
+
+
+def test_save_startup_rejects_missing_default_profile(
+    account_service: AccountService,
+) -> None:
+    with pytest.raises(ValidationError, match="Profile not found"):
+        account_service.save_startup({"skip_welcome": True, "default_user_id": 999})
+
+
+def test_delete_default_profile_clears_startup(account_service: AccountService) -> None:
+    first = account_service.create_user("one")
+    account_service.create_user("two")
+    account_service.save_startup({"skip_welcome": True, "default_user_id": first["id"]})
+    account_service.delete_user(first["id"])
+    assert account_service.get_startup() == {
+        "skip_welcome": False,
+        "default_user_id": None,
+    }
+
+
 @pytest.mark.asyncio
 async def test_profiles_mode_lists_users_and_selects(
     test_db: SqliteDatabase,
 ) -> None:
     state = AppState()
-    service = AccountService(UserRepository(), state)
+    service = _accounts()
     first = service.create_user("alpha")
     service.create_user("beta")
     service.select_user(first["id"])
@@ -140,8 +179,7 @@ async def test_profiles_mode_lists_users_and_selects(
 async def test_profiles_n_creates_and_d_deletes(
     test_db: SqliteDatabase,
 ) -> None:
-    state = AppState()
-    service = AccountService(UserRepository(), state)
+    service = _accounts()
     first = service.create_user("keep")
     service.select_user(first["id"])
     app = make_test_app(account_service=service)
@@ -176,7 +214,7 @@ async def test_profiles_n_creates_and_d_deletes(
 async def test_profile_delete_confirms_original_selection(
     test_db: SqliteDatabase,
 ) -> None:
-    service = AccountService(UserRepository(), AppState())
+    service = _accounts()
     first = service.create_user("first")
     second = service.create_user("second")
     service.select_user(first["id"])
@@ -203,8 +241,7 @@ async def test_profile_create_select_and_delete_run_off_ui_thread(
     test_db: SqliteDatabase,
     mocker: MockerFixture,
 ) -> None:
-    state = AppState()
-    service = AccountService(UserRepository(), state)
+    service = _accounts()
     first = service.create_user("keep")
     service.select_user(first["id"])
     app = make_test_app(account_service=service)

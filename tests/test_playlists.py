@@ -11,6 +11,7 @@ from textual.widgets import Input
 
 from tests.conftest import make_test_app
 from ytmusic_tui.db.repositories import (
+    AppConfigRepository,
     PlaylistRepository,
     SongRepository,
     UserRepository,
@@ -67,7 +68,7 @@ SONG_C: Song = {
 
 @pytest.fixture
 def playlist_setup(test_db: SqliteDatabase) -> tuple[AccountService, PlaylistService]:
-    accounts = AccountService(UserRepository(), AppState())
+    accounts = AccountService(UserRepository(), AppState(), AppConfigRepository())
     playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())
     return accounts, playlists
 
@@ -353,7 +354,7 @@ async def test_playlists_mode_opens(
     test_db: SqliteDatabase,
 ) -> None:
     state = AppState()
-    accounts = AccountService(UserRepository(), state)
+    accounts = AccountService(UserRepository(), state, AppConfigRepository())
     user = accounts.ensure_default_user()
     accounts.select_user(user["id"])
     playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())
@@ -382,7 +383,7 @@ def test_load_playlist_play_skips_duplicate_set_queue(
     mocker: MockerFixture,
 ) -> None:
     state = AppState()
-    accounts = AccountService(UserRepository(), state)
+    accounts = AccountService(UserRepository(), state, AppConfigRepository())
     user = accounts.ensure_default_user()
     accounts.select_user(user["id"])
     playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())
@@ -430,7 +431,7 @@ def _app_with_playlists(
     mock_player: MagicMock,
 ) -> tuple[YTMusicApp, PlaylistService, AppState, User]:
     state = AppState()
-    accounts = AccountService(UserRepository(), state)
+    accounts = AccountService(UserRepository(), state, AppConfigRepository())
     user = accounts.ensure_default_user()
     accounts.select_user(user["id"])
     playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())

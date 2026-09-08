@@ -26,6 +26,11 @@ class UserSettings(TypedDict):
     search_limit: int
 
 
+class StartupSettings(TypedDict):
+    skip_welcome: bool
+    default_user_id: int | None
+
+
 class User(TypedDict):
     id: int
     username: str

@@ -9,6 +9,7 @@ import pytest
 from peewee import SqliteDatabase
 from pytest_mock import MockerFixture
 
+from ytmusic_tui.db.app_config import AppConfig
 from ytmusic_tui.db.playlist import Playlist
 from ytmusic_tui.db.song import Song
 from ytmusic_tui.db.user import User
@@ -25,7 +26,7 @@ from ytmusic_tui.music.types import AudioStream
 from ytmusic_tui.music.types import Song as SongType
 from ytmusic_tui.utils.log import reset_logging
 
-MODELS = [User, Song, Playlist, Playlist.songs.get_through_model()]
+MODELS = [User, Song, Playlist, Playlist.songs.get_through_model(), AppConfig]
 
 
 class MockPlayerState(TypedDict):
@@ -188,6 +189,7 @@ def make_test_app(
     settings_service: SettingsService | MagicMock | None = None,
     mock_youtube: MagicMock | None = None,
     mock_player: MagicMock | None = None,
+    show_welcome: bool | None = False,
 ) -> YTMusicApp:
     if search_service is None:
         if mock_youtube is not None:
@@ -214,4 +216,5 @@ def make_test_app(
         account_service=cast("AccountService", account_service),
         playlist_service=cast("PlaylistService", playlist_service),
         settings_service=cast("SettingsService", settings_service),
+        show_welcome=show_welcome,
     )

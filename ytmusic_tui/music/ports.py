@@ -3,7 +3,14 @@
 from typing import Protocol, runtime_checkable
 
 from ytmusic_tui.consts import DEFAULT_SUGGEST_LIMIT
-from ytmusic_tui.music.types import AudioStream, Playlist, Song, User, UserSettings
+from ytmusic_tui.music.types import (
+    AudioStream,
+    Playlist,
+    Song,
+    StartupSettings,
+    User,
+    UserSettings,
+)
 
 
 @runtime_checkable
@@ -53,6 +60,13 @@ class UserRepositoryProtocol(Protocol):
     def delete_user(self, user_id: int) -> None: ...
 
     def update_settings(self, user_id: int, settings: UserSettings) -> User: ...
+
+
+@runtime_checkable
+class AppConfigRepositoryProtocol(Protocol):
+    def get(self) -> StartupSettings: ...
+
+    def save(self, settings: StartupSettings) -> StartupSettings: ...
 
 
 @runtime_checkable

@@ -12,6 +12,7 @@ from textual.widgets import Input, Label
 
 from tests.conftest import make_test_app
 from ytmusic_tui.db.repositories import (
+    AppConfigRepository,
     PlaylistRepository,
     SongRepository,
     UserRepository,
@@ -464,7 +465,7 @@ def _make_playlist_app(
     mock_player: MagicMock,
 ) -> tuple[YTMusicApp, PlaylistService, AppState, User]:
     state = AppState()
-    accounts = AccountService(UserRepository(), state)
+    accounts = AccountService(UserRepository(), state, AppConfigRepository())
     user = accounts.ensure_default_user()
     accounts.select_user(user["id"])
     playlists = PlaylistService(PlaylistRepository(SongRepository()), AppState())

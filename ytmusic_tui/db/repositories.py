@@ -7,12 +7,13 @@ from typing import ParamSpec, TypeVar
 from peewee import DatabaseError as PeeweeDatabaseError
 from peewee import IntegrityError
 
+from ytmusic_tui.db.app_config import AppConfig as DbAppConfig
 from ytmusic_tui.db.playlist import Playlist as DbPlaylist
 from ytmusic_tui.db.song import Song as DbSong
 from ytmusic_tui.db.user import User as DbUser
 from ytmusic_tui.exceptions import DatabaseError, ValidationError
 from ytmusic_tui.music.ports import SongRepositoryProtocol
-from ytmusic_tui.music.types import Playlist, Song, User, UserSettings
+from ytmusic_tui.music.types import Playlist, Song, StartupSettings, User, UserSettings
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -107,6 +108,40 @@ class UserRepository:
         row.search_limit = settings["search_limit"]
         row.save()
         return _to_user(row)
+
+
+_SINGLETON_CONFIG_ID = 1
+
+
+def _to_startup(row: DbAppConfig) -> StartupSettings:
+    default_id = row.default_user_id
+    return {
+        "skip_welcome": bool(row.skip_welcome),
+        "default_user_id": int(default_id) if default_id is not None else None,
+    }
+
+
+class AppConfigRepository:
+    @_database_operation
+    def get(self) -> StartupSettings:
+        row = DbAppConfig.get_or_none(DbAppConfig.id == _SINGLETON_CONFIG_ID)
+        if row is None:
+            return {"skip_welcome": False, "default_user_id": None}
+        return _to_startup(row)
+
+    @_database_operation
+    def save(self, settings: StartupSettings) -> StartupSettings:
+        row, _created = DbAppConfig.get_or_create(
+            id=_SINGLETON_CONFIG_ID,
+            defaults={
+                "skip_welcome": settings["skip_welcome"],
+                "default_user_id": settings["default_user_id"],
+            },
+        )
+        row.skip_welcome = settings["skip_welcome"]
+        row.default_user_id = settings["default_user_id"]
+        row.save()
+        return _to_startup(row)
 
 
 class SongRepository:

@@ -227,6 +227,66 @@ SettingsMode OptionList:focus {
     border: tall $accent;
 }
 
+WelcomeScreen {
+    align: center middle;
+    background: $background;
+}
+
+WelcomeScreen #welcome_column {
+    width: 56;
+    height: auto;
+    max-height: 100%;
+    background: $background;
+}
+
+WelcomeScreen #welcome_mark {
+    width: 100%;
+    height: auto;
+    content-align: center top;
+    color: $primary;
+    text-style: bold;
+}
+
+WelcomeScreen #welcome_tui {
+    width: 100%;
+    height: 1;
+    content-align: center middle;
+    color: $success;
+    text-style: bold;
+}
+
+WelcomeScreen #welcome_tag,
+WelcomeScreen #welcome_hints {
+    width: 100%;
+    content-align: center middle;
+    color: $text-muted;
+}
+
+WelcomeScreen #welcome_profiles {
+    width: 100%;
+    height: auto;
+    max-height: 12;
+    margin: 1 0;
+    background: $surface;
+    border: none;
+}
+
+WelcomeScreen #welcome_profiles:focus {
+    border: tall $accent;
+}
+
+WelcomeScreen #welcome_profiles > .option-list--option-highlighted {
+    background: $primary;
+    color: $background;
+}
+
+WelcomeScreen #welcome_empty {
+    height: auto;
+    color: $text-muted;
+    content-align: center middle;
+    padding: 1 0;
+}
+
 HelpModal {
     align: center middle;
 }
