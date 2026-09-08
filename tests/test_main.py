@@ -81,7 +81,7 @@ async def test_tui_app_lifecycle() -> None:
     assert not app.is_running
 
 
-def test_bootstrap_creates_default_user(
+def test_bootstrap_creates_tables_without_users(
     test_db: SqliteDatabase,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -91,8 +91,19 @@ def test_bootstrap_creates_default_user(
     monkeypatch.setattr("ytmusic_tui.db.bootstrap.DB_PATH", tmp_path / "ytmusic.db")
     bootstrap()
     assert AppState().current_user.get() is None
-    assert User.select().count() >= 1
+    assert User.select().count() == 0
+
+
+def test_build_production_app_ensures_default_user(
+    test_db: SqliteDatabase,
+    mocker: MockerFixture,
+) -> None:
+    mocker.patch("ytmusic_tui.main.Youtube")
+    mocker.patch("ytmusic_tui.main.VLCPlayer")
+    build_production_app()
+    assert User.select().count() == 1
     assert User.get().username == DEFAULT_USERNAME
+    assert AppState().current_user.get() is None
 
 
 def test_build_production_app_wires_services(mocker: MockerFixture) -> None:

@@ -263,7 +263,7 @@ def test_replace_songs_missing_playlist_raises(
     test_db: SqliteDatabase,
 ) -> None:
     repo = PlaylistRepository(SongRepository())
-    with pytest.raises(DatabaseError, match="not found"):
+    with pytest.raises(ValidationError, match="not found"):
         repo.replace_songs(999, [SONG_A])
 
 

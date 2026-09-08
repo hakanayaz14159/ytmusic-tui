@@ -305,20 +305,20 @@ async def test_profile_create_select_and_delete_run_off_ui_thread(
         assert delete_ids[0] != ui_thread
 
 
-def test_duplicate_username_raises_database_error(test_db: SqliteDatabase) -> None:
+def test_duplicate_username_raises_validation_error(test_db: SqliteDatabase) -> None:
     repo = UserRepository()
     repo.create_user("hzf")
-    with pytest.raises(DatabaseError, match="already exists"):
+    with pytest.raises(ValidationError, match="already exists"):
         repo.create_user("hzf")
 
 
 def test_delete_user_missing_id_raises(test_db: SqliteDatabase) -> None:
-    with pytest.raises(DatabaseError, match="not found"):
+    with pytest.raises(ValidationError, match="not found"):
         UserRepository().delete_user(999)
 
 
 def test_update_settings_missing_user_raises(test_db: SqliteDatabase) -> None:
-    with pytest.raises(DatabaseError, match="not found"):
+    with pytest.raises(ValidationError, match="not found"):
         UserRepository().update_settings(
             999,
             {"default_volume": 40, "search_limit": 10},

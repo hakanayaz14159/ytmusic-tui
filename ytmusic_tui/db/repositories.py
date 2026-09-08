@@ -78,7 +78,7 @@ class UserRepository:
         try:
             row = DbUser.create(username=username)
         except IntegrityError as err:
-            raise DatabaseError(f"Username already exists: {username}") from err
+            raise ValidationError(f"Username already exists: {username}") from err
         return _to_user(row)
 
     @_database_operation
@@ -96,14 +96,14 @@ class UserRepository:
         with DbUser._meta.database.atomic():
             row = DbUser.get_or_none(DbUser.id == user_id)
             if row is None:
-                raise DatabaseError(f"User {user_id} not found")
+                raise ValidationError(f"User {user_id} not found")
             row.delete_instance(recursive=True)
 
     @_database_operation
     def update_settings(self, user_id: int, settings: UserSettings) -> User:
         row = DbUser.get_or_none(DbUser.id == user_id)
         if row is None:
-            raise DatabaseError(f"User {user_id} not found")
+            raise ValidationError(f"User {user_id} not found")
         row.default_volume = settings["default_volume"]
         row.search_limit = settings["search_limit"]
         row.save()
@@ -187,7 +187,7 @@ class PlaylistRepository:
     def create(self, user_id: int, name: str) -> Playlist:
         user = DbUser.get_or_none(DbUser.id == user_id)
         if user is None:
-            raise DatabaseError(f"User {user_id} not found")
+            raise ValidationError(f"User {user_id} not found")
         row = DbPlaylist.create(name=name, user=user)
         return _to_playlist(row)
 
@@ -201,7 +201,7 @@ class PlaylistRepository:
         with DbPlaylist._meta.database.atomic():
             playlist = DbPlaylist.get_or_none(DbPlaylist.id == playlist_id)
             if playlist is None:
-                raise DatabaseError(f"Playlist {playlist_id} not found")
+                raise ValidationError(f"Playlist {playlist_id} not found")
             if playlist.songs.where(DbSong.video_id == song["video_id"]).exists():
                 raise ValidationError("Song is already in this playlist")
             db_song = self._songs.upsert(song)
@@ -212,10 +212,10 @@ class PlaylistRepository:
     def remove_song(self, playlist_id: int, video_id: str) -> None:
         playlist = DbPlaylist.get_or_none(DbPlaylist.id == playlist_id)
         if playlist is None:
-            raise DatabaseError(f"Playlist {playlist_id} not found")
+            raise ValidationError(f"Playlist {playlist_id} not found")
         row = DbSong.get_or_none(DbSong.video_id == video_id)
         if row is None:
-            raise DatabaseError(f"Song {video_id} not found")
+            raise ValidationError(f"Song {video_id} not found")
         playlist.songs.remove(row)
 
     @_database_operation
@@ -223,7 +223,7 @@ class PlaylistRepository:
         with DbPlaylist._meta.database.atomic():
             playlist = DbPlaylist.get_or_none(DbPlaylist.id == playlist_id)
             if playlist is None:
-                raise DatabaseError(f"Playlist {playlist_id} not found")
+                raise ValidationError(f"Playlist {playlist_id} not found")
             playlist.songs.clear()
             seen: set[str] = set()
             for song in songs:
@@ -241,5 +241,5 @@ class PlaylistRepository:
         with DbPlaylist._meta.database.atomic():
             row = DbPlaylist.get_or_none(DbPlaylist.id == playlist_id)
             if row is None:
-                raise DatabaseError(f"Playlist {playlist_id} not found")
+                raise ValidationError(f"Playlist {playlist_id} not found")
             row.delete_instance(recursive=True)

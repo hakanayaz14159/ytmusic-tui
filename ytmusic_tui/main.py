@@ -6,7 +6,7 @@ import sys
 from collections.abc import Callable
 from functools import partial
 from threading import Lock
-from typing import ClassVar
+from typing import ClassVar, TypeVar
 
 import click
 from textual import work
@@ -53,6 +53,8 @@ from ytmusic_tui.tui.widgets.song_table import SongTable
 from ytmusic_tui.utils.log import configure_logging
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class YTMusicApp(App[None]):
@@ -363,16 +365,11 @@ class YTMusicApp(App[None]):
         start_index: int,
         user_id: int,
     ) -> None:
-        try:
-            playlist = self.playlist_service.get_playlist(playlist_id)
-        except YTMusicError as err:
-            logger.exception("playlist load failed id=%s", playlist_id)
-            self.call_from_thread(self.notify, str(err), severity="error")
-            return
-        self.call_from_thread(
-            self._for_user,
+        self._complete_playlist_io(
             user_id,
-            partial(self._on_playlist_loaded, playlist, play, start_index),
+            f"playlist load failed id={playlist_id}",
+            lambda: self.playlist_service.get_playlist(playlist_id),
+            lambda playlist: self._on_playlist_loaded(playlist, play, start_index),
         )
 
     def _on_playlist_loaded(
@@ -399,14 +396,11 @@ class YTMusicApp(App[None]):
 
     @work(thread=True, exclusive=True, group="playlist-io")
     def _prompt_open_worker(self, user_id: int) -> None:
-        try:
-            playlists = self.playlist_service.list_playlists(user_id)
-        except YTMusicError as err:
-            logger.exception("playlist list for open failed")
-            self.call_from_thread(self.notify, str(err), severity="error")
-            return
-        self.call_from_thread(
-            self._for_user, user_id, partial(self._show_open_playlist_modal, playlists)
+        self._complete_playlist_io(
+            user_id,
+            "playlist list for open failed",
+            lambda: self.playlist_service.list_playlists(user_id),
+            self._show_open_playlist_modal,
         )
 
     def _show_open_playlist_modal(self, playlists: list[Playlist]) -> None:
@@ -460,18 +454,15 @@ class YTMusicApp(App[None]):
         user_id: int,
         songs: list[Song],
     ) -> None:
-        try:
-            playlist = self.playlist_service.create_playlist_from_songs(
+        self._complete_playlist_io(
+            user_id,
+            "queue save as playlist failed",
+            lambda: self.playlist_service.create_playlist_from_songs(
                 user_id,
                 name,
                 songs,
-            )
-        except YTMusicError as err:
-            logger.exception("queue save as playlist failed")
-            self.call_from_thread(self.notify, str(err), severity="error")
-            return
-        self.call_from_thread(
-            self._for_user, user_id, partial(self._on_playlist_saved, playlist)
+            ),
+            self._on_playlist_saved,
         )
 
     def _on_playlist_saved(self, playlist: Playlist) -> None:
@@ -490,14 +481,11 @@ class YTMusicApp(App[None]):
     def _overwrite_worker(
         self, playlist_id: int, songs: list[Song], user_id: int
     ) -> None:
-        try:
-            playlist = self.playlist_service.replace_songs(playlist_id, songs)
-        except YTMusicError as err:
-            logger.exception("working playlist overwrite failed")
-            self.call_from_thread(self.notify, str(err), severity="error")
-            return
-        self.call_from_thread(
-            self._for_user, user_id, partial(self._on_playlist_overwritten, playlist)
+        self._complete_playlist_io(
+            user_id,
+            "working playlist overwrite failed",
+            lambda: self.playlist_service.replace_songs(playlist_id, songs),
+            self._on_playlist_overwritten,
         )
 
     def _on_playlist_overwritten(self, playlist: Playlist) -> None:
@@ -537,16 +525,13 @@ class YTMusicApp(App[None]):
 
     @work(thread=True, exclusive=True, group="playlist-io")
     def _list_playlists_for_add(self, song: Song, user_id: int) -> None:
-        try:
-            playlists = self.playlist_service.list_playlists(user_id)
-        except YTMusicError as err:
-            logger.exception("playlist list for add failed")
-            self.call_from_thread(self.notify, str(err), severity="error")
-            return
-        self.call_from_thread(
-            self._for_user,
+        self._complete_playlist_io(
             user_id,
-            partial(self._show_add_to_playlist_modal, song, playlists, user_id),
+            "playlist list for add failed",
+            lambda: self.playlist_service.list_playlists(user_id),
+            lambda playlists: self._show_add_to_playlist_modal(
+                song, playlists, user_id
+            ),
         )
 
     def _show_add_to_playlist_modal(
@@ -564,13 +549,12 @@ class YTMusicApp(App[None]):
 
     @work(thread=True, exclusive=True, group="playlist-io")
     def _add_song_worker(self, playlist_id: int, song: Song, user_id: int) -> None:
-        try:
-            self.playlist_service.add_song(playlist_id, song)
-        except YTMusicError as err:
-            logger.exception("playlist add failed id=%s", playlist_id)
-            self.call_from_thread(self.notify, str(err), severity="error")
-            return
-        self.call_from_thread(self._for_user, user_id, self._on_song_added)
+        self._complete_playlist_io(
+            user_id,
+            f"playlist add failed id={playlist_id}",
+            lambda: self.playlist_service.add_song(playlist_id, song),
+            lambda _unused: self._on_song_added(),
+        )
 
     def _on_song_added(self) -> None:
         self.notify("Added to playlist", severity="information")
@@ -578,6 +562,21 @@ class YTMusicApp(App[None]):
 
     def _refresh_playlists(self) -> None:
         self._shell().reload_playlists_if_visible()
+
+    def _complete_playlist_io(
+        self,
+        user_id: int,
+        failure_log: str,
+        operation: Callable[[], T],
+        on_success: Callable[[T], None],
+    ) -> None:
+        try:
+            result = operation()
+        except YTMusicError as err:
+            logger.exception(failure_log)
+            self.call_from_thread(self.notify, str(err), severity="error")
+            return
+        self.call_from_thread(self._for_user, user_id, partial(on_success, result))
 
     def _for_user(self, user_id: int, callback: Callable[[], None]) -> None:
         user = AppState().current_user.get()
@@ -714,10 +713,12 @@ def build_production_app() -> YTMusicApp:
     source = Youtube()
     player = VLCPlayer()
     users = UserRepository()
+    account_service = AccountService(users, state, AppConfigRepository())
+    account_service.ensure_default_user()
     return YTMusicApp(
         search_service=SearchService(source),
         playback_service=PlaybackService(player, source, state),
-        account_service=AccountService(users, state, AppConfigRepository()),
+        account_service=account_service,
         playlist_service=PlaylistService(PlaylistRepository(SongRepository()), state),
         settings_service=SettingsService(users, state),
     )
