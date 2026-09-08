@@ -290,6 +290,9 @@ When an agent is assigned a task, it must execute this exact workflow:
 
 ```
 ytmusic-tui/
+├── .github/
+│   └── workflows/
+│       └── publish.yml                 # PyPI upload on GitHub Release
 ├── .cursor/
 │   └── rules/
 │       ├── architecture-domain.mdc     # Hexagonal architecture & state rules

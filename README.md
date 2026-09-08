@@ -38,23 +38,19 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 
 `python-vlc` is only a binding; playback fails without a system libVLC and a working audio device. You do not need [uv](https://docs.astral.sh/uv/) to install or run the player; uv is for contributors.
 
-> **Name clash.** `pipx install ytmusic-cli` installs a _different_ PyPI project (a playlist downloader). This player is **`ytmusic-tui`**.
-
 ---
 
 ## Installation
 
 ```bash
-pipx install git+https://github.com/hakanayaz14159/ytmusic-tui.git
+pipx install ytmusic-player-cli
 ytmusic-tui
 ```
 
-From a clone, still without uv:
+From git, still without uv:
 
 ```bash
-git clone https://github.com/hakanayaz14159/ytmusic-tui.git
-cd ytmusic-tui
-pipx install .
+pipx install git+https://github.com/hakanayaz14159/ytmusic-tui.git
 ```
 
 `pip` works the same way (`pip install git+https://...` or `pip install .`) if you would rather put the package in an existing virtualenv.
@@ -74,9 +70,9 @@ Press `?` in the app for the keymap: `1`–`5` switch modes and `/` jumps to the
 When YouTube breaks stream extraction, refresh yt-dlp inside the pipx environment:
 
 ```bash
-pipx upgrade ytmusic-tui
+pipx upgrade ytmusic-player-cli
 # or only yt-dlp:
-pipx runpip ytmusic-tui install -U yt-dlp
+pipx runpip ytmusic-player-cli install -U yt-dlp
 ```
 
 ### Your data
@@ -143,11 +139,15 @@ uv run pytest tests/test_youtube_contract.py -m network
 
 Contributions follow test-first development, strict `mypy`, and Conventional Commits; the details are in [`AGENTS.md`](AGENTS.md).
 
+### Releasing
+
+PyPI accepts each version once. A GitHub Release whose tag matches `__version__` (for example `v0.1.1` after bumping [`ytmusic_tui/__init__.py`](ytmusic_tui/__init__.py) to `0.1.1`) runs [`.github/workflows/publish.yml`](.github/workflows/publish.yml) and uploads the wheel.
+
 ---
 
 ## Project status
 
-Alpha, and a personal project I maintain for my own listening. Bug reports and pull requests are welcome, but there is no roadmap, no release schedule, and no support commitment. Since playback depends on yt-dlp keeping up with YouTube, expect the occasional breakage and keep `yt-dlp` up to date (`pipx upgrade ytmusic-tui`, or `uv lock --upgrade-package yt-dlp` in a contributor checkout).
+Alpha, and a personal project I maintain for my own listening. Bug reports and pull requests are welcome, but there is no roadmap, no release schedule, and no support commitment. Since playback depends on yt-dlp keeping up with YouTube, expect the occasional breakage and keep `yt-dlp` up to date (`pipx upgrade ytmusic-player-cli`, or `uv lock --upgrade-package yt-dlp` in a contributor checkout).
 
 ---
 

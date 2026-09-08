@@ -1,5 +1,5 @@
 [project]
-name = "ytmusic-tui"
+name = "ytmusic-player-cli"
 dynamic = ["version"]
 description = "Unofficial terminal music player that streams YouTube audio. Not affiliated with Google or YouTube."
 authors = [
