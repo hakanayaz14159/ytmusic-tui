@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.svg" alt="YTMusic TUI" width="420">
+</p>
+
 # YTMusic TUI
 
 A keyboard-driven, audio-only terminal music player for YouTube, built with Python, [Textual](https://github.com/Textualize/textual), [yt-dlp](https://github.com/yt-dlp/yt-dlp), and VLC.
