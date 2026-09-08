@@ -1,26 +1,35 @@
 """Playlists mode: local lists for the active profile."""
 
 from functools import partial
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Horizontal, Vertical
+from textual.message import Message
 from textual.widgets import Label, ListView, OptionList
 from textual.widgets.option_list import Option
 
 from ytmusic_tui.exceptions import YTMusicError
 from ytmusic_tui.music.state import AppState
-from ytmusic_tui.music.types import Playlist
-from ytmusic_tui.tui.app import ytmusic_app
+from ytmusic_tui.music.types import Playlist, Song
+from ytmusic_tui.tui.access import ytmusic_app
 from ytmusic_tui.tui.modals.confirm import ConfirmModal
 from ytmusic_tui.tui.modals.prompt import PromptModal
 from ytmusic_tui.tui.widgets.select_list import SelectList
 from ytmusic_tui.tui.widgets.song_table import SongRow, SongTable
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 
 class PlaylistsMode(Horizontal):
+    class PlayingChanged(Message):
+        def __init__(self, song: Song | None) -> None:
+            super().__init__()
+            self.song = song
+
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("n", "new_playlist", "New", show=False),
         Binding("d", "delete_focused", "Delete", show=False),
@@ -40,6 +49,7 @@ class PlaylistsMode(Horizontal):
         self._playlists: list[Playlist] = []
         self._selected_id: int | None = None
         self._load_generation = 0
+        self._unsub_song: Callable[[], None] | None = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="playlist_nav"):
@@ -50,8 +60,14 @@ class PlaylistsMode(Horizontal):
             )
         yield SongTable(id="playlist_tracks", allow_delete=True, allow_append=True)
 
+    def on_mount(self) -> None:
+        self._unsub_song = AppState().current_song.subscribe(self._on_song)
+
     def on_unmount(self) -> None:
         self._load_generation += 1
+        if self._unsub_song is not None:
+            self._unsub_song()
+            self._unsub_song = None
 
     @work(thread=True, exclusive=True, group="playlists")
     def reload(self) -> None:
@@ -221,6 +237,15 @@ class PlaylistsMode(Horizontal):
             if playlist["id"] == self._selected_id:
                 return playlist
         return None
+
+    def _on_song(self, song: Song | None) -> None:
+        if self.is_mounted:
+            self.post_message(self.PlayingChanged(song))
+
+    def on_playlists_mode_playing_changed(self, message: PlayingChanged) -> None:
+        table = self.query_one("#playlist_tracks", SongTable)
+        song = message.song
+        table.set_playing_id(song["video_id"] if song is not None else None)
 
     def _render_lists(self) -> None:
         option_list = self.query_one("#playlist_list", SelectList)

@@ -41,11 +41,13 @@ ytmusic_tui/
 ├── music/          # Domain types, ports, services, external adapters
 │   ├── types.py    # Domain models and TypedDicts
 │   ├── ports.py    # Protocols implemented by the adapters
-│   ├── services.py # Search, playback, playlist, account, settings use cases
+│   ├── services/   # Search, playback, playlist, account, settings use cases
 │   ├── youtube.py  # yt-dlp adapter for search and stream extraction
 │   ├── stream_proxy.py # Local HTTP bridge for stream request headers
 │   └── state.py    # Reactive application state
 ├── tui/            # Presentation layer (Textual shell, modes, widgets)
+│   ├── app.py      # YTMusicApp: the Textual application and playback coordinator
+│   ├── access.py   # Typed accessor for the running app (breaks import cycle)
 │   ├── shell.py    # Persistent chrome: modes, now-playing, status
 │   ├── modes/      # Search, Queue, Playlists, Profiles, Settings
 │   ├── widgets/    # Mode bar, song table, now playing

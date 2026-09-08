@@ -9,7 +9,8 @@ from textual.widgets import Label, ListView
 
 from ytmusic_tui.consts import COMPACT_HEIGHT_ROWS, WIDE_LAYOUT_COLUMNS
 from ytmusic_tui.music.state import AppState
-from ytmusic_tui.tui.app import ytmusic_app
+from ytmusic_tui.tui.access import ytmusic_app
+from ytmusic_tui.tui.modes import ModeId
 from ytmusic_tui.tui.modes.playlists import PlaylistsMode
 from ytmusic_tui.tui.modes.profiles import ProfilesMode
 from ytmusic_tui.tui.modes.queue import QueueMode
@@ -21,7 +22,7 @@ from ytmusic_tui.tui.widgets.queue_list import QueueList
 from ytmusic_tui.tui.widgets.song_table import SongRow, SongTable
 from ytmusic_tui.tui.widgets.status_bar import StatusBar
 
-MODES: tuple[str, ...] = (
+MODES: tuple[ModeId, ...] = (
     "search",
     "queue",
     "playlists",
@@ -29,7 +30,7 @@ MODES: tuple[str, ...] = (
     "settings",
 )
 
-HINTS: dict[str, str] = {
+HINTS: dict[ModeId, str] = {
     "search": (
         "enter play   space pause   down/up complete   a queue   "
         "A playlist   j/k move   / search   ? help"
@@ -63,7 +64,7 @@ class AppShell(Vertical):
         disabled: bool = False,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
-        self.current_mode = "search"
+        self.current_mode: ModeId = "search"
 
     def compose(self) -> ComposeResult:
         yield ModeBar(id="mode_bar")
@@ -90,7 +91,7 @@ class AppShell(Vertical):
         self._apply_wide_layout()
         self._apply_compact_chrome()
 
-    def switch_mode(self, mode_id: str) -> None:
+    def switch_mode(self, mode_id: ModeId) -> None:
         if mode_id not in MODES:
             return
         self.current_mode = mode_id

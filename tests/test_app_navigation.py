@@ -7,8 +7,8 @@ from pytest_mock import MockerFixture
 from textual.widgets import Input
 
 from tests.conftest import make_test_app
-from ytmusic_tui.main import YTMusicApp
 from ytmusic_tui.music.types import PlaybackTick, PlaybackTickAction
+from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.tui.modals.help import HelpModal
 from ytmusic_tui.tui.modes.search import SearchMode
 from ytmusic_tui.tui.shell import AppShell
@@ -197,7 +197,19 @@ async def test_shift_a_inserts_when_search_input_focused(
 
 
 @pytest.mark.asyncio
-async def test_digit_two_switches_to_queue_mode(
+@pytest.mark.parametrize(
+    ("digit", "mode"),
+    [
+        ("1", "search"),
+        ("2", "queue"),
+        ("3", "playlists"),
+        ("4", "profiles"),
+        ("5", "settings"),
+    ],
+)
+async def test_digit_switches_mode_when_search_input_not_focused(
+    digit: str,
+    mode: str,
     mock_search_service: MagicMock,
     mock_playback_service: MagicMock,
 ) -> None:
@@ -207,9 +219,28 @@ async def test_digit_two_switches_to_queue_mode(
         await pilot.pause()
         await pilot.press("escape")
         await pilot.pause()
-        await pilot.press("2")
+        await pilot.press(digit)
         await pilot.pause()
-        assert app.query_one(AppShell).current_mode == "queue"
+        assert app.query_one(AppShell).current_mode == mode
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("digit", ["1", "2", "3", "4", "5"])
+async def test_digit_inserts_when_search_input_focused(
+    digit: str,
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.query_one("#search_input", Input)
+        assert search_input.has_focus is True
+        await pilot.press(digit)
+        await pilot.pause()
+        assert digit in search_input.value
+        assert app.query_one(AppShell).current_mode == "search"
 
 
 @pytest.mark.asyncio

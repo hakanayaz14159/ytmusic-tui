@@ -13,7 +13,7 @@ from textual.widgets.option_list import Option
 from ytmusic_tui.exceptions import YTMusicError
 from ytmusic_tui.music.state import AppState
 from ytmusic_tui.music.types import User
-from ytmusic_tui.tui.app import ytmusic_app
+from ytmusic_tui.tui.access import ytmusic_app
 from ytmusic_tui.tui.modals.confirm import ConfirmModal
 from ytmusic_tui.tui.modals.prompt import PromptModal
 from ytmusic_tui.tui.widgets.select_list import SelectList

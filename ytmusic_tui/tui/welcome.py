@@ -13,7 +13,7 @@ from textual.widgets.option_list import Option
 from ytmusic_tui.consts import COMPACT_HEIGHT_ROWS, DEFAULT_USERNAME
 from ytmusic_tui.exceptions import YTMusicError
 from ytmusic_tui.music.types import StartupSettings, User
-from ytmusic_tui.tui.app import ytmusic_app
+from ytmusic_tui.tui.access import ytmusic_app
 from ytmusic_tui.tui.modals.prompt import PromptModal
 from ytmusic_tui.tui.widgets.select_list import SelectList
 

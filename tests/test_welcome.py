@@ -8,9 +8,9 @@ from textual.widgets import Input, Static
 
 from tests.conftest import make_test_app
 from ytmusic_tui.db.repositories import AppConfigRepository, UserRepository
-from ytmusic_tui.main import YTMusicApp
 from ytmusic_tui.music.services import AccountService
 from ytmusic_tui.music.state import AppState
+from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.tui.modes.search import SearchMode
 from ytmusic_tui.tui.shell import AppShell
 from ytmusic_tui.tui.welcome import WORDMARK_COMPACT, WORDMARK_FULL, WelcomeScreen

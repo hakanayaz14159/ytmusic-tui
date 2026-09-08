@@ -18,7 +18,7 @@ from ytmusic_tui.consts import (
 )
 from ytmusic_tui.exceptions import YTMusicError
 from ytmusic_tui.music.state import AppState
-from ytmusic_tui.tui.app import ytmusic_app
+from ytmusic_tui.tui.access import ytmusic_app
 from ytmusic_tui.tui.widgets.song_table import SongRow, SongTable
 from ytmusic_tui.tui.widgets.suggestion_list import SuggestionList
 

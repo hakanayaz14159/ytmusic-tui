@@ -13,7 +13,6 @@ from ytmusic_tui.db.app_config import AppConfig
 from ytmusic_tui.db.playlist import Playlist
 from ytmusic_tui.db.song import Song
 from ytmusic_tui.db.user import User
-from ytmusic_tui.main import YTMusicApp
 from ytmusic_tui.music.services import (
     AccountService,
     PlaybackService,
@@ -24,6 +23,7 @@ from ytmusic_tui.music.services import (
 from ytmusic_tui.music.state import AppState
 from ytmusic_tui.music.types import AudioStream
 from ytmusic_tui.music.types import Song as SongType
+from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.utils.log import reset_logging
 
 MODELS = [User, Song, Playlist, Playlist.songs.get_through_model(), AppConfig]

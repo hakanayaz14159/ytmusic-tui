@@ -17,7 +17,6 @@ from ytmusic_tui.db.repositories import (
     SongRepository,
     UserRepository,
 )
-from ytmusic_tui.main import YTMusicApp
 from ytmusic_tui.music.services import (
     AccountService,
     PlaybackService,
@@ -32,6 +31,7 @@ from ytmusic_tui.music.types import (
     Song,
     User,
 )
+from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.tui.modals.add_to_playlist import AddToPlaylistModal
 from ytmusic_tui.tui.modals.confirm import ConfirmModal
 from ytmusic_tui.tui.modals.prompt import PromptModal

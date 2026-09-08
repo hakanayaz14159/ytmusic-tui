@@ -16,8 +16,9 @@ if TYPE_CHECKING:
     from textual.app import ComposeResult
 
     from ytmusic_tui.music.types import User
+    from ytmusic_tui.tui.modes import ModeId
 
-MODE_LABELS: tuple[tuple[str, str], ...] = (
+MODE_LABELS: tuple[tuple[ModeId, str], ...] = (
     ("search", "Search"),
     ("queue", "Queue"),
     ("playlists", "Playlists"),
@@ -43,7 +44,7 @@ class ModeBar(Horizontal):
         disabled: bool = False,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes, disabled=disabled)
-        self._active = "search"
+        self._active: ModeId = "search"
         self._unsub_user: Callable[[], None] | None = None
 
     def compose(self) -> ComposeResult:
@@ -62,7 +63,7 @@ class ModeBar(Horizontal):
             self._unsub_user()
             self._unsub_user = None
 
-    def set_active(self, mode_id: str) -> None:
+    def set_active(self, mode_id: ModeId) -> None:
         self._active = mode_id
         if not self.is_mounted:
             return

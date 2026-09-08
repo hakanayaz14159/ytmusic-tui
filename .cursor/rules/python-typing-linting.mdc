@@ -12,7 +12,7 @@ Target is 3.11+. Imports stay at the top of the file. For type-only cycles:
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ytmusic_tui.main import YTMusicApp
+    from ytmusic_tui.tui.app import YTMusicApp
 ```
 
 - Annotate every parameter and return type. Do not use `Any`.

@@ -11,8 +11,8 @@ from textual.widgets import Input, Label
 from tests.conftest import make_test_app
 from ytmusic_tui.consts import DEFAULT_SUGGEST_LIMIT
 from ytmusic_tui.exceptions import StreamExtractionError, SuggestionError
-from ytmusic_tui.main import YTMusicApp
 from ytmusic_tui.music.types import Song
+from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.tui.format import format_song_line
 from ytmusic_tui.tui.modes.search import SearchMode
 from ytmusic_tui.tui.widgets.song_table import SongRow, SongTable, VimListView

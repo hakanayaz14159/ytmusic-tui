@@ -10,7 +10,7 @@ from textual.message import Message
 from textual.widgets import Label
 
 from ytmusic_tui.music.state import AppState
-from ytmusic_tui.tui.app import ytmusic_app
+from ytmusic_tui.tui.access import ytmusic_app
 from ytmusic_tui.tui.widgets.queue_list import QueueList
 
 if TYPE_CHECKING:

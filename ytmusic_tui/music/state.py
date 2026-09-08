@@ -51,11 +51,6 @@ class AtomicData(Generic[T]):
 
         return unsubscribe
 
-    def unsubscribe(self, callback: Callable[[T], None]) -> None:
-        """Unsubscribe from data changes."""
-        if callback in self._subscribers:
-            self._subscribers.remove(callback)
-
     def _notify_subscribers(self) -> None:
         """Notify all subscribers of data changes."""
         for callback in self._subscribers:

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from tests.conftest import make_test_app
-from ytmusic_tui.main import YTMusicApp
+from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.tui.modals.help import HelpModal
 
 

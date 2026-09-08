@@ -17,7 +17,6 @@ from ytmusic_tui.db.repositories import (
     UserRepository,
 )
 from ytmusic_tui.exceptions import DatabaseError, ValidationError
-from ytmusic_tui.main import YTMusicApp
 from ytmusic_tui.music.services import (
     AccountService,
     PlaybackService,
@@ -26,6 +25,7 @@ from ytmusic_tui.music.services import (
 )
 from ytmusic_tui.music.state import AppState
 from ytmusic_tui.music.types import Playlist, Song, User
+from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.tui.modals.add_to_playlist import AddToPlaylistModal
 from ytmusic_tui.tui.modals.confirm import ConfirmModal
 from ytmusic_tui.tui.modes.playlists import PlaylistsMode
@@ -493,6 +493,36 @@ async def test_playlists_reload_preserves_selected_playlist(
         mode = app.query_one(PlaylistsMode)
         assert mode._current_playlist() == second
         assert mode.query_one("#playlist_list", SelectList).highlighted == 1
+
+
+@pytest.mark.asyncio
+async def test_playlists_tracks_follow_current_song_without_reload(
+    test_db: SqliteDatabase,
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+) -> None:
+    app, playlists, state, user = _app_with_playlists(mock_youtube, mock_player)
+    playlists.create_playlist_from_songs(user["id"], "Study", [SONG_A, SONG_B])
+
+    async with app.run_test() as pilot:
+        app.query_one(AppShell).switch_mode("playlists")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        tracks = app.query_one("#playlist_tracks", SongTable)
+
+        def playing_id() -> str | None:
+            return tracks._playing_id
+
+        assert playing_id() is None
+
+        state.current_song.set(SONG_B)
+        await pilot.pause()
+        assert playing_id() == "b"
+
+        state.current_song.set(None)
+        await pilot.pause()
+        assert playing_id() is None
 
 
 @pytest.mark.asyncio
