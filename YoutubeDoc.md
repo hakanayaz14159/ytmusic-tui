@@ -41,5 +41,3 @@ Profile changes clear the working playlist. In-flight load/save completions chec
 The default pytest suite uses mocked YouTube and audio adapters, in-memory SQLite, and Textual's headless pilot. Thread events coordinate concurrency regressions without hard sleeps.
 
 The optional `network` tests check live YouTube behavior and are excluded from the default run. Passing offline tests does not establish current CDN availability or working audio on a particular machine; those depend on YouTube, installed libVLC, and the host audio device.
-
-See [the feature reliability review](docs/feature-reliability-review.md) for acceptance criteria and audit results.
