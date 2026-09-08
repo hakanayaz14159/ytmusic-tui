@@ -24,7 +24,6 @@ Search YouTube, queue tracks, and keep local profiles and playlists - without le
 
 ## Roadmap
 
-- Alternate vim-style keys (`p` play, `H`/`L` modes), keeping the current map as default.
 - Resume from the last position, and seeking within a track.
 - Homebrew and Linux packages.
 - Offline downloads and local-file playback.

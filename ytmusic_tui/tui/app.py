@@ -69,6 +69,8 @@ class YTMusicApp(App[None]):
         Binding("5", "switch_to_mode('settings', '5')", show=False),
         Binding("tab", "next_mode", show=False, priority=True),
         Binding("shift+tab", "previous_mode", show=False, priority=True),
+        Binding("H", "previous_mode('H')", show=False),
+        Binding("L", "next_mode('L')", show=False),
         Binding("A", "add_to_playlist", show=False),
     ]
 
@@ -220,10 +222,14 @@ class YTMusicApp(App[None]):
             return
         self._shell().switch_mode(mode_id)
 
-    def action_next_mode(self) -> None:
+    def action_next_mode(self, char: str | None = None) -> None:
+        if char is not None and self._insert_if_input(char):
+            return
         self._shell().next_mode()
 
-    def action_previous_mode(self) -> None:
+    def action_previous_mode(self, char: str | None = None) -> None:
+        if char is not None and self._insert_if_input(char):
+            return
         self._shell().previous_mode()
 
     def action_add_to_playlist(self) -> None:

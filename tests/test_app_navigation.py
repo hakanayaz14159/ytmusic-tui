@@ -244,6 +244,57 @@ async def test_digit_inserts_when_search_input_focused(
 
 
 @pytest.mark.asyncio
+async def test_shift_l_cycles_to_next_mode_when_not_in_input(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("L")
+        await pilot.pause()
+        assert app.query_one(AppShell).current_mode == "queue"
+
+
+@pytest.mark.asyncio
+async def test_shift_h_cycles_to_previous_mode_when_not_in_input(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("H")
+        await pilot.pause()
+        assert app.query_one(AppShell).current_mode == "settings"
+
+
+@pytest.mark.asyncio
+async def test_shift_h_and_l_insert_when_search_input_focused(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.query_one("#search_input", Input)
+        assert search_input.has_focus is True
+        await pilot.press("H")
+        await pilot.press("L")
+        await pilot.pause()
+        assert "H" in search_input.value
+        assert "L" in search_input.value
+        assert app.query_one(AppShell).current_mode == "search"
+
+
+@pytest.mark.asyncio
 async def test_question_mark_opens_help_modal(
     mock_search_service: MagicMock,
     mock_playback_service: MagicMock,

@@ -34,11 +34,13 @@ def test_hints_for_search_list_includes_motions_and_reentry() -> None:
     text = hints_for("search", "list")
     assert "j/k" in text
     assert "g/G" in text
+    assert "H/L mode" in text
     assert "/ search" in text
 
 
 def test_hints_for_other_modes_include_list_motions() -> None:
     assert "g/G" in hints_for("queue", "list")
+    assert "H/L mode" in hints_for("queue", "list")
     assert "h/l pane" in hints_for("playlists", "list")
     assert "h/l adjust" in hints_for("settings", "list")
 

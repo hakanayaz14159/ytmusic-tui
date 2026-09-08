@@ -9,9 +9,11 @@ FocusKind = Literal["input", "list"]
 _SEARCH_INPUT_HINTS = "enter search   esc blur   down/up complete   ? help"
 
 _MODE_HINTS: dict[ModeId, str] = {
-    "search": "enter play   a queue   A playlist   j/k g/G   / search   ? help",
+    "search": (
+        "enter play   a queue   A playlist   j/k g/G   H/L mode   / search   ? help"
+    ),
     "queue": (
-        "enter play   d remove   j/k g/G   o open   n save   "
+        "enter play   d remove   j/k g/G   H/L mode   o open   n save   "
         "w write   A playlist   ? help"
     ),
     "playlists": (
