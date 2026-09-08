@@ -1,14 +1,17 @@
 # Contributing
 
-Use [uv](https://docs.astral.sh/uv/) in a checkout. End users install with pipx; they do not need uv.
+Use [uv](https://docs.astral.sh/uv/) in a checkout. End users install with pipx, `uv tool`, or pip; they do not need uv.
 
 ```bash
 uv sync --all-groups
-make test        # uv run pytest
-make test-cov    # coverage report
-make lint        # ruff format --check, ruff check, mypy
-make format      # ruff format + ruff check --fix
-make dev         # textual run --dev for the live console
+uv run pytest
+uv run pytest --cov=ytmusic_tui --cov-report=term-missing
+uv run ruff format --check ytmusic_tui/ tests/
+uv run ruff check ytmusic_tui/ tests/
+uv run mypy ytmusic_tui/ tests/
+uv run ruff format ytmusic_tui/ tests/
+uv run ruff check --fix ytmusic_tui/ tests/
+uv run textual run --dev ytmusic_tui/main.py
 ```
 
 When YouTube breaks extraction in a checkout: `uv lock --upgrade-package yt-dlp`.

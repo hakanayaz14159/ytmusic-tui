@@ -38,7 +38,6 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 
 - **Python** 3.11 or newer
 - **libVLC** on the system — the `vlc` package on Linux, [VLC](https://www.videolan.org/vlc/) on macOS and Windows
-- **[pipx](https://pipx.pypa.io/)** (recommended) to install the player in its own environment
 
 Playback needs a system libVLC and a working audio device, not just the `python-vlc` package.
 
@@ -46,8 +45,18 @@ Playback needs a system libVLC and a working audio device, not just the `python-
 
 ## Installation
 
+Any Python installer works. Pick one:
+
 ```bash
-pipx install ytmusic-player-cli
+pipx install ytmusic-player-cli        # isolated app env
+uv tool install ytmusic-player-cli     # same idea, if you have uv
+pip install ytmusic-player-cli         # inside a virtualenv
+pip install --user ytmusic-player-cli  # user site-packages
+```
+
+Then:
+
+```bash
 ytmusic-tui
 ```
 
@@ -57,7 +66,7 @@ From git:
 pipx install git+https://github.com/hakanayaz14159/ytmusic-tui.git
 ```
 
-`pip` works the same way (`pip install git+https://...` or `pip install .`) if you would rather put the package in an existing virtualenv.
+`pip` and `uv tool` work the same way (`pip install git+https://...` or `pip install .`).
 
 ---
 
@@ -71,12 +80,18 @@ ytmusic-tui --help
 
 On launch, choose a profile (`enter` to continue, `n` for a new one). In Settings you can pick a startup profile and skip that screen. Press `?` in the player for the keymap: `1`–`5` switch modes and `/` jumps to the query field.
 
-When YouTube breaks stream extraction, refresh yt-dlp inside the pipx environment:
+When YouTube breaks stream extraction, refresh yt-dlp with the same installer you used:
 
 ```bash
 pipx upgrade ytmusic-player-cli
 # or only yt-dlp:
 pipx runpip ytmusic-player-cli install -U yt-dlp
+
+# uv tool:
+uv tool upgrade ytmusic-player-cli
+
+# pip (venv or --user):
+pip install -U ytmusic-player-cli
 ```
 
 Profiles, playlists, and track metadata stay in a local SQLite file (`~/.local/share/ytmusic-tui/ytmusic.db` on Linux). There is no account, no server, and no telemetry.
