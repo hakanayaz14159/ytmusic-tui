@@ -74,12 +74,14 @@ class AccountService:
             {
                 "skip_welcome": settings["skip_welcome"],
                 "default_user_id": default_id,
+                "skip_keymap": settings["skip_keymap"],
             }
         )
         logger.info(
-            "startup saved skip_welcome=%s default_user_id=%s",
+            "startup saved skip_welcome=%s default_user_id=%s skip_keymap=%s",
             saved["skip_welcome"],
             saved["default_user_id"],
+            saved["skip_keymap"],
         )
         return saved
 
@@ -92,7 +94,13 @@ class AccountService:
         self._users.delete_user(user_id)
         startup = self._config.get()
         if startup["default_user_id"] == user_id:
-            self._config.save({"skip_welcome": False, "default_user_id": None})
+            self._config.save(
+                {
+                    "skip_welcome": False,
+                    "default_user_id": None,
+                    "skip_keymap": startup["skip_keymap"],
+                }
+            )
         current = self._state.current_user.get()
         if current is not None and current["id"] == user_id:
             remaining = self._users.list_users()

@@ -148,7 +148,7 @@ def test_append_to_queue_plays_when_stopped(
     mock_player.play.assert_not_called()
 
 
-def test_play_next_advances_and_end_stops(
+def test_play_next_advances_and_end_is_noop(
     mock_youtube: MagicMock,
     mock_player: MagicMock,
     sample_songs: list[Song],
@@ -162,10 +162,12 @@ def test_play_next_advances_and_end_stops(
         service.start_stream(nxt, service.resolve_stream(nxt))
     assert state.queue_index.get() == 1
     assert state.current_song.get() == sample_songs[1]
+    mock_player.stop.reset_mock()
     nxt = service.advance_to_next()
-    if nxt is not None:
-        service.start_stream(nxt, service.resolve_stream(nxt))
-    assert state.playback_state.get()["status"] == PlaybackStatus.STOPPED
+    assert nxt is None
+    mock_player.stop.assert_not_called()
+    assert state.playback_state.get()["status"] == PlaybackStatus.PLAYING
+    assert state.queue_index.get() == 1
     assert state.current_song.get() == sample_songs[1]
 
 
@@ -247,6 +249,26 @@ def test_play_previous_moves_back(
     prev = service.advance_to_previous()
     assert prev is not None
     service.start_stream(prev, service.resolve_stream(prev))
+    assert state.queue_index.get() == 0
+    assert state.current_song.get() == sample_songs[0]
+
+
+def test_play_previous_at_start_is_noop(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    sample_songs: list[Song],
+) -> None:
+    state = AppState()
+    service = PlaybackService(mock_player, mock_youtube, state)
+    first = service.set_queue(sample_songs, 0)
+    service.start_stream(first, service.resolve_stream(first))
+    mock_player.stop.reset_mock()
+
+    prev = service.advance_to_previous()
+
+    assert prev is None
+    mock_player.stop.assert_not_called()
+    assert state.playback_state.get()["status"] == PlaybackStatus.PLAYING
     assert state.queue_index.get() == 0
     assert state.current_song.get() == sample_songs[0]
 

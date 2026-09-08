@@ -24,7 +24,7 @@ Search YouTube, queue tracks, and keep local profiles and playlists - without le
 
 ## Roadmap
 
-- Resume from the last position, and seeking within a track.
+- Resume from the last position.
 - Homebrew and Linux packages.
 - Offline downloads and local-file playback.
 - Algorithmic recommendations, possibly.

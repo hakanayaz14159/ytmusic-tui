@@ -24,7 +24,10 @@ A            Add to playlist
 Space        Play / pause
 /            Search and focus query
 +  =  -      Volume
->  <         Next / previous in queue
+<  z         Previous / next (ISO)
+z  x         Previous / next (US)
+             Settings picks which pair is active
+e  r         Seek -5s / +5s
 Down Up      Complete suggestion
 d            Remove queue item, playlist, track, or profile
 n            New playlist, profile, or save queue

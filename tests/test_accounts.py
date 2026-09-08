@@ -10,6 +10,7 @@ from textual.widgets import Input
 
 from tests.conftest import make_test_app
 from ytmusic_tui.consts import DEFAULT_USERNAME
+from ytmusic_tui.db.app_config import AppConfig as DbAppConfig
 from ytmusic_tui.db.repositories import (
     AppConfigRepository,
     PlaylistRepository,
@@ -20,7 +21,7 @@ from ytmusic_tui.db.user import User as DbUser
 from ytmusic_tui.exceptions import DatabaseError, ValidationError
 from ytmusic_tui.music.services import AccountService
 from ytmusic_tui.music.state import AppState
-from ytmusic_tui.music.types import User
+from ytmusic_tui.music.types import SkipKeymapMode, User
 from ytmusic_tui.tui.modals.confirm import ConfirmModal
 from ytmusic_tui.tui.modes.profiles import ProfilesMode
 from ytmusic_tui.tui.shell import AppShell
@@ -115,15 +116,35 @@ def test_get_startup_defaults_when_unset(account_service: AccountService) -> Non
     assert account_service.get_startup() == {
         "skip_welcome": False,
         "default_user_id": None,
+        "skip_keymap": SkipKeymapMode.AUTO,
     }
+
+
+def test_get_startup_rejects_unknown_skip_keymap(test_db: SqliteDatabase) -> None:
+    DbAppConfig.create(
+        id=1,
+        skip_welcome=False,
+        default_user_id=None,
+        skip_keymap="qwerty",
+    )
+    with pytest.raises(ValidationError, match="Unknown skip keymap"):
+        AppConfigRepository().get()
 
 
 def test_save_startup_round_trip(account_service: AccountService) -> None:
     user = account_service.create_user("hzf")
     saved = account_service.save_startup(
-        {"skip_welcome": True, "default_user_id": user["id"]}
+        {
+            "skip_welcome": True,
+            "default_user_id": user["id"],
+            "skip_keymap": SkipKeymapMode.ANSI,
+        }
     )
-    assert saved == {"skip_welcome": True, "default_user_id": user["id"]}
+    assert saved == {
+        "skip_welcome": True,
+        "default_user_id": user["id"],
+        "skip_keymap": SkipKeymapMode.ANSI,
+    }
     assert account_service.get_startup() == saved
 
 
@@ -131,17 +152,30 @@ def test_save_startup_rejects_missing_default_profile(
     account_service: AccountService,
 ) -> None:
     with pytest.raises(ValidationError, match="Profile not found"):
-        account_service.save_startup({"skip_welcome": True, "default_user_id": 999})
+        account_service.save_startup(
+            {
+                "skip_welcome": True,
+                "default_user_id": 999,
+                "skip_keymap": SkipKeymapMode.AUTO,
+            }
+        )
 
 
 def test_delete_default_profile_clears_startup(account_service: AccountService) -> None:
     first = account_service.create_user("one")
     account_service.create_user("two")
-    account_service.save_startup({"skip_welcome": True, "default_user_id": first["id"]})
+    account_service.save_startup(
+        {
+            "skip_welcome": True,
+            "default_user_id": first["id"],
+            "skip_keymap": SkipKeymapMode.ISO,
+        }
+    )
     account_service.delete_user(first["id"])
     assert account_service.get_startup() == {
         "skip_welcome": False,
         "default_user_id": None,
+        "skip_keymap": SkipKeymapMode.ISO,
     }
 
 

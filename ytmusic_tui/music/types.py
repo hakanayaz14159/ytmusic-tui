@@ -26,9 +26,29 @@ class UserSettings(TypedDict):
     search_limit: int
 
 
+class SkipKeymap(StrEnum):
+    ISO = "iso"
+    ANSI = "ansi"
+
+
+class SkipKeymapMode(StrEnum):
+    AUTO = "auto"
+    ISO = "iso"
+    ANSI = "ansi"
+
+
 class StartupSettings(TypedDict):
     skip_welcome: bool
     default_user_id: int | None
+    skip_keymap: SkipKeymapMode
+
+
+def default_startup_settings() -> StartupSettings:
+    return {
+        "skip_welcome": False,
+        "default_user_id": None,
+        "skip_keymap": SkipKeymapMode.AUTO,
+    }
 
 
 class User(TypedDict):

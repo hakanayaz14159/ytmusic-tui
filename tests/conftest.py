@@ -21,7 +21,7 @@ from ytmusic_tui.music.services import (
     SettingsService,
 )
 from ytmusic_tui.music.state import AppState
-from ytmusic_tui.music.types import AudioStream
+from ytmusic_tui.music.types import AudioStream, default_startup_settings
 from ytmusic_tui.music.types import Song as SongType
 from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.utils.log import reset_logging
@@ -65,6 +65,19 @@ def fast_suggest_debounce(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "ytmusic_tui.tui.modes.search.SUGGEST_DEBOUNCE_SECONDS",
         0.01,
+    )
+
+
+@pytest.fixture(autouse=True)
+def isolate_skip_keymap_detection(
+    request: pytest.FixtureRequest,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if request.module.__name__ == "tests.test_skip_keymap":
+        return
+    monkeypatch.setattr(
+        "ytmusic_tui.tui.skip_keymap.detect_skip_keymap",
+        lambda: None,
     )
 
 
@@ -163,6 +176,9 @@ def mock_player(mocker: MockerFixture) -> MagicMock:
     def _get_volume() -> int:
         return int(state["volume"])
 
+    def _seek(position: float) -> None:
+        state["position"] = max(0.0, float(position))
+
     # Explicit attribute assignment so isinstance(..., AudioPlayerProtocol) works
     # (getattr_static used by runtime_checkable cannot see MagicMock children).
     player.play = mocker.MagicMock(side_effect=_play)
@@ -172,6 +188,7 @@ def mock_player(mocker: MockerFixture) -> MagicMock:
     player.set_volume = mocker.MagicMock(side_effect=_set_volume)
     player.get_volume = mocker.MagicMock(side_effect=_get_volume)
     player.get_position = mocker.MagicMock(return_value=0.0)
+    player.seek = mocker.MagicMock(side_effect=_seek)
     player.has_ended = mocker.MagicMock(return_value=False)
     player.has_failed = mocker.MagicMock(return_value=False)
     player.engine_state = mocker.MagicMock(return_value="Stopped")
@@ -206,6 +223,7 @@ def make_test_app(
             playback_service.sync_playback = MagicMock()
     if account_service is None:
         account_service = MagicMock()
+        account_service.get_startup = MagicMock(return_value=default_startup_settings())
     if playlist_service is None:
         playlist_service = MagicMock()
     if settings_service is None:

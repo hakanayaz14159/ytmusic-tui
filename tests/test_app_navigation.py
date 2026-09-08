@@ -7,7 +7,7 @@ from pytest_mock import MockerFixture
 from textual.widgets import Input
 
 from tests.conftest import make_test_app
-from ytmusic_tui.music.types import PlaybackTick, PlaybackTickAction
+from ytmusic_tui.music.types import PlaybackTick, PlaybackTickAction, SkipKeymap
 from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.tui.modals.help import HelpModal
 from ytmusic_tui.tui.modes.search import SearchMode
@@ -29,6 +29,8 @@ def mock_playback_service() -> MagicMock:
     service.toggle = MagicMock()
     service.volume_up = MagicMock()
     service.volume_down = MagicMock()
+    service.seek_forward = MagicMock()
+    service.seek_backward = MagicMock()
     service.play_song = MagicMock()
     service.play_next = MagicMock()
     service.play_previous = MagicMock()
@@ -178,6 +180,242 @@ async def test_volume_keys_insert_when_search_input_focused(
         assert "-" in search_input.value
         mock_playback_service.volume_up.assert_not_called()
         mock_playback_service.volume_down.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_pressing_e_calls_seek_backward(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("e")
+        await pilot.pause()
+        mock_playback_service.seek_backward.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_pressing_r_calls_seek_forward(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("r")
+        await pilot.pause()
+        mock_playback_service.seek_forward.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_seek_keys_insert_when_search_input_focused(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.query_one("#search_input", Input)
+        assert search_input.has_focus is True
+        await pilot.press("e")
+        await pilot.press("r")
+        await pilot.pause()
+
+        assert "e" in search_input.value
+        assert "r" in search_input.value
+        mock_playback_service.seek_backward.assert_not_called()
+        mock_playback_service.seek_forward.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_pressing_z_calls_play_next(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_next = mocker.patch.object(app, "_play_next")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.focused, Input)
+        await pilot.press("z")
+        await pilot.pause()
+        play_next.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_pressing_less_than_sign_calls_play_previous(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_previous = mocker.patch.object(app, "_play_previous")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.focused, Input)
+        await pilot.press("<")
+        await pilot.pause()
+        play_previous.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_pressing_less_than_alias_does_not_skip_previous(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_previous = mocker.patch.object(app, "_play_previous")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("less_than")
+        await pilot.pause()
+        play_previous.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_queue_skip_keys_insert_when_search_input_focused(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_next = mocker.patch.object(app, "_play_next")
+    play_previous = mocker.patch.object(app, "_play_previous")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.query_one("#search_input", Input)
+        assert search_input.has_focus is True
+        await pilot.press("z")
+        await pilot.press("<")
+        await pilot.pause()
+
+        assert "z" in search_input.value
+        assert "<" in search_input.value
+        play_next.assert_not_called()
+        play_previous.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_pressing_x_does_not_skip_on_iso(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_next = mocker.patch.object(app, "_play_next")
+    play_previous = mocker.patch.object(app, "_play_previous")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app._skip_keymap is SkipKeymap.ISO
+        assert not isinstance(app.focused, Input)
+        await pilot.press("x")
+        await pilot.pause()
+        play_next.assert_not_called()
+        play_previous.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ansi_z_calls_play_previous(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_next = mocker.patch.object(app, "_play_next")
+    play_previous = mocker.patch.object(app, "_play_previous")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app._skip_keymap = SkipKeymap.ANSI
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.focused, Input)
+        await pilot.press("z")
+        await pilot.pause()
+        play_previous.assert_called_once()
+        play_next.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ansi_x_calls_play_next(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_next = mocker.patch.object(app, "_play_next")
+    play_previous = mocker.patch.object(app, "_play_previous")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app._skip_keymap = SkipKeymap.ANSI
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("x")
+        await pilot.pause()
+        play_next.assert_called_once()
+        play_previous.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ansi_less_than_does_not_skip(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_previous = mocker.patch.object(app, "_play_previous")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app._skip_keymap = SkipKeymap.ANSI
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("<")
+        await pilot.pause()
+        play_previous.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_x_inserts_when_search_input_focused(
+    mock_search_service: MagicMock,
+    mock_playback_service: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    app = _make_app(mock_search_service, mock_playback_service)
+    play_next = mocker.patch.object(app, "_play_next")
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        search_input = app.query_one("#search_input", Input)
+        assert search_input.has_focus is True
+        await pilot.press("x")
+        await pilot.pause()
+        assert "x" in search_input.value
+        play_next.assert_not_called()
 
 
 @pytest.mark.asyncio

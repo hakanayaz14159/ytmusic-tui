@@ -12,7 +12,7 @@ from ytmusic_tui.db.repositories import AppConfigRepository, UserRepository
 from ytmusic_tui.exceptions import ValidationError
 from ytmusic_tui.music.services import AccountService, SettingsService
 from ytmusic_tui.music.state import AppState
-from ytmusic_tui.music.types import User, UserSettings
+from ytmusic_tui.music.types import SkipKeymap, SkipKeymapMode, User, UserSettings
 from ytmusic_tui.tui.modes.settings import SettingsMode
 from ytmusic_tui.tui.shell import AppShell
 from ytmusic_tui.tui.widgets.select_list import SelectList
@@ -80,6 +80,7 @@ async def test_settings_mode_opens() -> None:
     accounts.get_startup.return_value = {
         "skip_welcome": False,
         "default_user_id": None,
+        "skip_keymap": SkipKeymapMode.AUTO,
     }
     accounts.list_users.return_value = []
     app = make_test_app(
@@ -157,6 +158,39 @@ async def test_settings_toggle_skip_welcome_and_startup_profile(
         startup = accounts.get_startup()
         assert startup["skip_welcome"] is True
         assert startup["default_user_id"] == second["id"]
+        assert startup["skip_keymap"] == SkipKeymapMode.AUTO
+
+
+@pytest.mark.asyncio
+async def test_settings_cycles_skip_keymap(
+    test_db: SqliteDatabase,
+) -> None:
+    state = AppState()
+    users = UserRepository()
+    accounts = AccountService(users, state, AppConfigRepository())
+    user = accounts.create_user("hzf")
+    accounts.select_user(user["id"])
+    settings = SettingsService(users, state)
+    app = make_test_app(account_service=accounts, settings_service=settings)
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        await pilot.press("5")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        mode = app.query_one(SettingsMode)
+        option_list = mode.query_one("#settings_list", SelectList)
+        option_list.highlighted = 4
+        mode.action_adjust_up()
+        await pilot.pause()
+        mode.action_save()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        startup = accounts.get_startup()
+        assert startup["skip_keymap"] == SkipKeymapMode.ISO
+        assert app._skip_keymap is SkipKeymap.ISO
 
 
 @pytest.mark.asyncio

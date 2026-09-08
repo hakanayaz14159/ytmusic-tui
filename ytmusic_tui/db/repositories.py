@@ -13,7 +13,15 @@ from ytmusic_tui.db.song import Song as DbSong
 from ytmusic_tui.db.user import User as DbUser
 from ytmusic_tui.exceptions import DatabaseError, ValidationError
 from ytmusic_tui.music.ports import SongRepositoryProtocol
-from ytmusic_tui.music.types import Playlist, Song, StartupSettings, User, UserSettings
+from ytmusic_tui.music.types import (
+    Playlist,
+    SkipKeymapMode,
+    Song,
+    StartupSettings,
+    User,
+    UserSettings,
+    default_startup_settings,
+)
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -113,11 +121,19 @@ class UserRepository:
 _SINGLETON_CONFIG_ID = 1
 
 
+def _skip_keymap_mode(value: str) -> SkipKeymapMode:
+    try:
+        return SkipKeymapMode(value)
+    except ValueError as err:
+        raise ValidationError(f"Unknown skip keymap: {value}") from err
+
+
 def _to_startup(row: DbAppConfig) -> StartupSettings:
     default_id = row.default_user_id
     return {
         "skip_welcome": bool(row.skip_welcome),
         "default_user_id": int(default_id) if default_id is not None else None,
+        "skip_keymap": _skip_keymap_mode(str(row.skip_keymap)),
     }
 
 
@@ -126,20 +142,23 @@ class AppConfigRepository:
     def get(self) -> StartupSettings:
         row = DbAppConfig.get_or_none(DbAppConfig.id == _SINGLETON_CONFIG_ID)
         if row is None:
-            return {"skip_welcome": False, "default_user_id": None}
+            return default_startup_settings()
         return _to_startup(row)
 
     @_database_operation
     def save(self, settings: StartupSettings) -> StartupSettings:
+        skip_keymap = settings["skip_keymap"]
         row, _created = DbAppConfig.get_or_create(
             id=_SINGLETON_CONFIG_ID,
             defaults={
                 "skip_welcome": settings["skip_welcome"],
                 "default_user_id": settings["default_user_id"],
+                "skip_keymap": skip_keymap,
             },
         )
         row.skip_welcome = settings["skip_welcome"]
         row.default_user_id = settings["default_user_id"]
+        row.skip_keymap = skip_keymap
         row.save()
         return _to_startup(row)
 

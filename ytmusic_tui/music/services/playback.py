@@ -18,6 +18,7 @@ from ytmusic_tui.music.types import (
 logger = logging.getLogger(__name__)
 
 _VOLUME_STEP = 5
+_SEEK_STEP = 5.0
 
 
 class PlaybackService:
@@ -129,9 +130,6 @@ class PlaybackService:
             )
             return queue[next_index]
         logger.info("advance_to_next exhausted")
-        if self._state.playback_state.get()["status"] != PlaybackStatus.STOPPED:
-            self.discard_stream()
-            self._patch_playback(status=PlaybackStatus.STOPPED)
         return None
 
     def advance_to_previous(self) -> Song | None:
@@ -218,6 +216,12 @@ class PlaybackService:
 
     def volume_down(self) -> None:
         self._adjust_volume(-_VOLUME_STEP)
+
+    def seek_forward(self) -> None:
+        self._seek_by(_SEEK_STEP)
+
+    def seek_backward(self) -> None:
+        self._seek_by(-_SEEK_STEP)
 
     def sync_playback(self) -> PlaybackTick:
         current = self._state.playback_state.get()
@@ -311,6 +315,18 @@ class PlaybackService:
         new_volume = max(0, min(MAX_VOLUME, current["volume"] + delta))
         self._player.set_volume(new_volume)
         self._patch_playback(volume=new_volume)
+
+    def _seek_by(self, delta: float) -> None:
+        current = self._state.playback_state.get()
+        if current["status"] not in (PlaybackStatus.PLAYING, PlaybackStatus.PAUSED):
+            return
+        target = current["position"] + delta
+        if current["duration"] > 0:
+            target = min(target, float(current["duration"]))
+        target = max(0.0, target)
+        logger.info("seek_by delta=%s target=%s", delta, target)
+        self._player.seek(target)
+        self._patch_playback(position=target)
 
     def _set_status(self, status: PlaybackStatus) -> None:
         self._patch_playback(status=status)

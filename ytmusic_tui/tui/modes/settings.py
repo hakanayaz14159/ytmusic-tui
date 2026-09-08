@@ -18,12 +18,25 @@ from ytmusic_tui.consts import (
 )
 from ytmusic_tui.exceptions import YTMusicError
 from ytmusic_tui.music.state import AppState
-from ytmusic_tui.music.types import StartupSettings, User, UserSettings
+from ytmusic_tui.music.types import (
+    SkipKeymap,
+    SkipKeymapMode,
+    StartupSettings,
+    User,
+    UserSettings,
+    default_startup_settings,
+)
+from ytmusic_tui.tui import skip_keymap as skip_keys
 from ytmusic_tui.tui.access import ytmusic_app
 from ytmusic_tui.tui.widgets.select_list import SelectList
 
 _VOLUME_STEP = 5
 _LIMIT_STEP = 1
+_SKIP_KEYMAP_MODES: tuple[SkipKeymapMode, ...] = (
+    SkipKeymapMode.AUTO,
+    SkipKeymapMode.ISO,
+    SkipKeymapMode.ANSI,
+)
 
 
 class SettingsMode(Vertical):
@@ -48,10 +61,8 @@ class SettingsMode(Vertical):
             "default_volume": DEFAULT_VOLUME,
             "search_limit": DEFAULT_SEARCH_LIMIT,
         }
-        self._startup: StartupSettings = {
-            "skip_welcome": False,
-            "default_user_id": None,
-        }
+        self._startup: StartupSettings = default_startup_settings()
+        self._detected_skip_keymap: SkipKeymap | None = None
         self._users: list[User] = []
         self._hydrated = False
 
@@ -72,18 +83,22 @@ class SettingsMode(Vertical):
         except YTMusicError as err:
             app.call_from_thread(self.notify, str(err), severity="error")
             return
-        app.call_from_thread(self._apply, settings, startup, users)
+        detected = skip_keys.detect_skip_keymap()
+        app.call_from_thread(self._apply, settings, startup, users, detected)
 
     def _apply(
         self,
         settings: UserSettings,
         startup: StartupSettings,
         users: list[User],
+        detected: SkipKeymap | None,
     ) -> None:
         self._settings = settings
+        self._detected_skip_keymap = detected
         self._startup = {
             "skip_welcome": startup["skip_welcome"],
             "default_user_id": startup["default_user_id"],
+            "skip_keymap": startup["skip_keymap"],
         }
         self._users = users
         if self._startup["default_user_id"] is None and self._users:
@@ -111,6 +126,7 @@ class SettingsMode(Vertical):
         try:
             saved = app.settings_service.save(self._settings)
             startup = app.account_service.save_startup(self._startup)
+            app.apply_skip_keymap(startup)
         except YTMusicError as err:
             app.call_from_thread(self.notify, str(err), severity="error")
             return
@@ -147,6 +163,8 @@ class SettingsMode(Vertical):
             self._startup["skip_welcome"] = not self._startup["skip_welcome"]
         elif option_id == "startup_profile":
             self._cycle_startup_profile(direction)
+        elif option_id == "skip_keymap":
+            self._cycle_skip_keymap(direction)
         self._refresh_options()
 
     def _cycle_startup_profile(self, direction: int) -> None:
@@ -156,6 +174,13 @@ class SettingsMode(Vertical):
         current = self._startup["default_user_id"]
         index = 0 if current not in ids else ids.index(current)
         self._startup["default_user_id"] = ids[(index + direction) % len(ids)]
+
+    def _cycle_skip_keymap(self, direction: int) -> None:
+        current = self._startup["skip_keymap"]
+        index = _SKIP_KEYMAP_MODES.index(current)
+        self._startup["skip_keymap"] = _SKIP_KEYMAP_MODES[
+            (index + direction) % len(_SKIP_KEYMAP_MODES)
+        ]
 
     def on_option_list_option_selected(
         self,
@@ -182,6 +207,11 @@ class SettingsMode(Vertical):
         option_list.add_option(
             Option(f"Startup profile   {profile}", id="startup_profile")
         )
+        keymap = skip_keys.skip_keymap_label(
+            self._startup["skip_keymap"],
+            self._detected_skip_keymap,
+        )
+        option_list.add_option(Option(f"Queue skip keys   {keymap}", id="skip_keymap"))
         option_list.highlighted = 0 if highlighted is None else highlighted
 
 

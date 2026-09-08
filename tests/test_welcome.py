@@ -10,6 +10,7 @@ from tests.conftest import make_test_app
 from ytmusic_tui.db.repositories import AppConfigRepository, UserRepository
 from ytmusic_tui.music.services import AccountService
 from ytmusic_tui.music.state import AppState
+from ytmusic_tui.music.types import SkipKeymapMode
 from ytmusic_tui.tui.app import YTMusicApp
 from ytmusic_tui.tui.modes.search import SearchMode
 from ytmusic_tui.tui.shell import AppShell
@@ -139,7 +140,13 @@ async def test_skip_welcome_selects_default_profile(
     service = _accounts()
     service.create_user("alpha")
     beta = service.create_user("beta")
-    service.save_startup({"skip_welcome": True, "default_user_id": beta["id"]})
+    service.save_startup(
+        {
+            "skip_welcome": True,
+            "default_user_id": beta["id"],
+            "skip_keymap": SkipKeymapMode.AUTO,
+        }
+    )
     app = _welcome_app(service, show_welcome=None)
 
     async with app.run_test() as pilot:
@@ -159,7 +166,13 @@ async def test_skip_welcome_without_default_shows_gate(
 ) -> None:
     service = _accounts()
     service.create_user("alpha")
-    service.save_startup({"skip_welcome": True, "default_user_id": None})
+    service.save_startup(
+        {
+            "skip_welcome": True,
+            "default_user_id": None,
+            "skip_keymap": SkipKeymapMode.AUTO,
+        }
+    )
     app = _welcome_app(service, show_welcome=None)
 
     async with app.run_test() as pilot:

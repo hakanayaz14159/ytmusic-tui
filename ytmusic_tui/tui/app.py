@@ -27,10 +27,14 @@ from ytmusic_tui.music.types import (
     PlaybackStatus,
     PlaybackTickAction,
     Playlist,
+    SkipKeymap,
+    SkipKeymapMode,
     Song,
+    StartupSettings,
     User,
 )
 from ytmusic_tui.theme import ytmusic_theme
+from ytmusic_tui.tui import skip_keymap as skip_keys
 from ytmusic_tui.tui.modals.add_to_playlist import AddToPlaylistModal
 from ytmusic_tui.tui.modals.confirm import ConfirmModal
 from ytmusic_tui.tui.modals.help import HelpModal
@@ -60,8 +64,11 @@ class YTMusicApp(App[None]):
         Binding("plus", "volume_up('+')", "Vol +", show=False, priority=True),
         Binding("equals_sign", "volume_up('=')", "Vol +", show=False, priority=True),
         Binding("minus", "volume_down('-')", "Vol -", show=False, priority=True),
-        Binding("greater_than", "play_next", "Next", show=False),
-        Binding("less_than", "play_previous", "Previous", show=False),
+        Binding("z", "skip_z", "Skip z", show=False),
+        Binding("less_than_sign", "skip_less_than", "Skip <", show=False),
+        Binding("x", "skip_x", "Skip x", show=False),
+        Binding("e", "seek_backward", "Seek -5s", show=False),
+        Binding("r", "seek_forward", "Seek +5s", show=False),
         Binding("1", "switch_to_mode('search', '1')", show=False),
         Binding("2", "switch_to_mode('queue', '2')", show=False),
         Binding("3", "switch_to_mode('playlists', '3')", show=False),
@@ -98,15 +105,24 @@ class YTMusicApp(App[None]):
         self._pending_index: int | None = None
         self._player_lock = Lock()
         self._closing = False
+        self._skip_keymap = SkipKeymap.ISO
 
     def on_mount(self) -> None:
         self.set_interval(1.0, self._on_playback_tick)
         if self._show_welcome is False:
+            self._apply_skip_keymap_from_store()
             return
         if self._show_welcome is True:
+            self._apply_skip_keymap_from_store()
             self.push_screen(WelcomeScreen(), self._on_welcome_done)
             return
         self._apply_startup_or_welcome()
+
+    def _apply_skip_keymap_from_store(self) -> None:
+        try:
+            self.apply_skip_keymap(self.account_service.get_startup())
+        except YTMusicError:
+            logger.exception("skip keymap settings load failed")
 
     @work(thread=True, exclusive=True, group="startup")
     def _apply_startup_or_welcome(self) -> None:
@@ -116,6 +132,7 @@ class YTMusicApp(App[None]):
             logger.exception("startup settings load failed")
             self.call_from_thread(self._open_welcome)
             return
+        self.apply_skip_keymap(startup)
         user_id = startup["default_user_id"]
         if startup["skip_welcome"] and user_id is not None:
             try:
@@ -207,15 +224,49 @@ class YTMusicApp(App[None]):
         except YTMusicError as err:
             self.notify(f"Volume change failed: {err}", severity="error")
 
-    def action_play_next(self) -> None:
-        if self._insert_if_input(">"):
-            return
-        self._play_next()
+    def apply_skip_keymap(self, startup: StartupSettings) -> None:
+        mode = startup["skip_keymap"]
+        detected = (
+            skip_keys.detect_skip_keymap() if mode is SkipKeymapMode.AUTO else None
+        )
+        self._skip_keymap = skip_keys.resolve_skip_keymap(mode, detected)
 
-    def action_play_previous(self) -> None:
+    def action_skip_z(self) -> None:
+        if self._insert_if_input("z"):
+            return
+        if self._skip_keymap is SkipKeymap.ISO:
+            self._play_next()
+            return
+        if self._skip_keymap is SkipKeymap.ANSI:
+            self._play_previous()
+
+    def action_skip_less_than(self) -> None:
         if self._insert_if_input("<"):
             return
-        self._play_previous()
+        if self._skip_keymap is SkipKeymap.ISO:
+            self._play_previous()
+
+    def action_skip_x(self) -> None:
+        if self._insert_if_input("x"):
+            return
+        if self._skip_keymap is SkipKeymap.ANSI:
+            self._play_next()
+
+    def action_seek_backward(self) -> None:
+        if self._insert_if_input("e"):
+            return
+        try:
+            self.playback_service.seek_backward()
+        except YTMusicError as err:
+            self.notify(f"Seek failed: {err}", severity="error")
+
+    def action_seek_forward(self) -> None:
+        if self._insert_if_input("r"):
+            return
+        try:
+            self.playback_service.seek_forward()
+        except YTMusicError as err:
+            self.notify(f"Seek failed: {err}", severity="error")
 
     def action_switch_to_mode(self, mode_id: ModeId, digit: str) -> None:
         if self._insert_if_input(digit):

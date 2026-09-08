@@ -23,7 +23,7 @@ enter play   a queue   space pause   / search   ? help
 - At width >= 110, a Queue pane docks beside the active mode (hidden when Queue is the mode).
 - Wordmark is the 3-line box-drawing `YTMUSIC` plus `T U I` (one line when height < 24).
 
-**Global:** `1`-`5` modes, `Tab` / `Shift+Tab` cycle, `Shift+H` / `Shift+L` cycle when not in an Input, `/` search field, `Space` play/pause (types a space in an Input), `+` `=` `-` volume, `>` `<` queue skip, `?` help, `q` quit when not in an Input, `Ctrl+q` always quits, `Esc` closes a modal (does not change mode). `/` or `i` from a song list focuses the search query. `Esc` blurs search to results when present, or the search mode when results are empty (never leaves focus empty).
+**Global:** `1`-`5` modes, `Tab` / `Shift+Tab` cycle, `Shift+H` / `Shift+L` cycle when not in an Input, `/` search field, `Space` play/pause (types a space in an Input), `+` `=` `-` volume, queue skip is `<` `z` on ISO and `z` `x` on US (Settings Auto/ISO/US; types in an Input), `e` `r` seek -5s / +5s (types in an Input), `?` help, `q` quit when not in an Input, `Ctrl+q` always quits, `Esc` closes a modal (does not change mode). `/` or `i` from a song list focuses the search query. `Esc` blurs search to results when present, or the search mode when results are empty (never leaves focus empty).
 
 **Welcome:** `Enter` select, `n` new profile, `q` quit. Player keys do nothing until the screen dismisses.
 

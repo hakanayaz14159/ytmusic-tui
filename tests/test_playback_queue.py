@@ -19,7 +19,7 @@ def songs() -> list[Song]:
 
 
 @pytest.mark.parametrize("paused", [False, True])
-def test_next_after_final_song_stops_audio(
+def test_next_after_final_song_is_noop(
     mock_player: MagicMock,
     mock_youtube: MagicMock,
     songs: list[Song],
@@ -31,12 +31,15 @@ def test_next_after_final_song_stops_audio(
     service.start_stream(song, service.resolve_stream(song))
     if paused:
         service.toggle()
+    expected = PlaybackStatus.PAUSED if paused else PlaybackStatus.PLAYING
+    mock_player.stop.reset_mock()
 
     assert service.advance_to_next() is None
 
-    mock_player.stop.assert_called_once()
-    assert state.playback_state.get()["status"] == PlaybackStatus.STOPPED
+    mock_player.stop.assert_not_called()
+    assert state.playback_state.get()["status"] == expected
     assert state.current_song.get() == song
+    assert state.queue_index.get() == 1
 
 
 def test_duplicate_song_keeps_selected_queue_occurrence(

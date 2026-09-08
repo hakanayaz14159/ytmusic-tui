@@ -72,9 +72,6 @@ async def test_tui_app_lifecycle() -> None:
     app = make_test_app(
         search_service=search,
         playback_service=playback,
-        account_service=MagicMock(),
-        playlist_service=MagicMock(),
-        settings_service=MagicMock(),
     )
     async with app.run_test() as pilot:
         await pilot.pause()

@@ -200,6 +200,118 @@ def test_playback_service_volume_clamped_0_100(
     assert app_state.playback_state.get()["volume"] == 0
 
 
+def test_playback_service_seek_forward_and_backward_by_five_seconds(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    app_state: AppState,
+    sample_song: Song,
+) -> None:
+    service = PlaybackService(mock_player, mock_youtube, app_state)
+    _play(service, sample_song)
+    service._patch_playback(position=40.0)
+    mock_player.seek.reset_mock()
+
+    service.seek_forward()
+    assert app_state.playback_state.get()["position"] == 45.0
+    mock_player.seek.assert_called_once_with(45.0)
+
+    service.seek_backward()
+    assert app_state.playback_state.get()["position"] == 40.0
+    mock_player.seek.assert_called_with(40.0)
+
+
+def test_playback_service_seek_clamps_to_zero_and_duration(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    app_state: AppState,
+    sample_song: Song,
+) -> None:
+    service = PlaybackService(mock_player, mock_youtube, app_state)
+    _play(service, sample_song)
+    service._patch_playback(position=2.0)
+
+    service.seek_backward()
+    assert app_state.playback_state.get()["position"] == 0.0
+    mock_player.seek.assert_called_with(0.0)
+
+    service._patch_playback(position=238.0)
+    mock_player.seek.reset_mock()
+    service.seek_forward()
+    assert app_state.playback_state.get()["position"] == 240.0
+    mock_player.seek.assert_called_once_with(240.0)
+
+
+def test_playback_service_seek_clamps_to_zero_when_duration_is_zero(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    app_state: AppState,
+    sample_song: Song,
+) -> None:
+    service = PlaybackService(mock_player, mock_youtube, app_state)
+    _play(service, sample_song)
+    service._patch_playback(position=12.0, duration=0)
+
+    service.seek_backward()
+    assert app_state.playback_state.get()["position"] == 7.0
+    mock_player.seek.assert_called_with(7.0)
+
+    service._patch_playback(position=2.0, duration=0)
+    mock_player.seek.reset_mock()
+    service.seek_backward()
+    assert app_state.playback_state.get()["position"] == 0.0
+    mock_player.seek.assert_called_once_with(0.0)
+
+
+def test_playback_service_seek_is_noop_when_stopped(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    app_state: AppState,
+) -> None:
+    service = PlaybackService(mock_player, mock_youtube, app_state)
+
+    service.seek_forward()
+    service.seek_backward()
+
+    mock_player.seek.assert_not_called()
+    assert app_state.playback_state.get()["position"] == 0.0
+
+
+def test_playback_service_seek_works_while_paused(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    app_state: AppState,
+    sample_song: Song,
+) -> None:
+    service = PlaybackService(mock_player, mock_youtube, app_state)
+    _play(service, sample_song)
+    service.toggle()
+    service._patch_playback(position=30.0)
+    mock_player.seek.reset_mock()
+
+    service.seek_forward()
+
+    assert app_state.playback_state.get()["status"] == PlaybackStatus.PAUSED
+    assert app_state.playback_state.get()["position"] == 35.0
+    mock_player.seek.assert_called_once_with(35.0)
+
+
+def test_playback_service_seek_does_not_patch_when_player_fails(
+    mock_youtube: MagicMock,
+    mock_player: MagicMock,
+    app_state: AppState,
+    sample_song: Song,
+) -> None:
+    service = PlaybackService(mock_player, mock_youtube, app_state)
+    _play(service, sample_song)
+    service._patch_playback(position=20.0)
+    mock_player.seek.side_effect = PlaybackError("seek failed")
+
+    with pytest.raises(PlaybackError, match="seek failed"):
+        service.seek_forward()
+
+    assert app_state.playback_state.get()["position"] == 20.0
+
+
 def test_playback_service_source_failure_leaves_state_stopped(
     mock_youtube: MagicMock,
     mock_player: MagicMock,

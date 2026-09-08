@@ -51,12 +51,21 @@ async def test_force_quit_works_from_modal() -> None:
 
 
 @pytest.mark.parametrize(
-    "action", ["action_volume_up", "action_volume_down", "_on_playback_tick"]
+    "action",
+    [
+        "action_volume_up",
+        "action_volume_down",
+        "action_seek_forward",
+        "action_seek_backward",
+        "_on_playback_tick",
+    ],
 )
 def test_player_control_errors_are_reported(action: str, mocker: MockerFixture) -> None:
     playback = MagicMock()
     playback.volume_up.side_effect = PlaybackError("Audio device unavailable")
     playback.volume_down.side_effect = PlaybackError("Audio device unavailable")
+    playback.seek_forward.side_effect = PlaybackError("Audio device unavailable")
+    playback.seek_backward.side_effect = PlaybackError("Audio device unavailable")
     playback.sync_playback.side_effect = PlaybackError("Audio device unavailable")
     app = make_test_app(playback_service=playback)
     mocker.patch.object(app, "_insert_if_input", return_value=False)

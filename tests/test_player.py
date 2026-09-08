@@ -213,6 +213,37 @@ def test_get_position_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) ->
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
+def test_seek_converts_seconds_to_milliseconds(mock_vlc: MagicMock) -> None:
+    mock_vlc.set_time.return_value = 0
+    player = VLCPlayer()
+    player.seek(12.5)
+    mock_vlc.set_time.assert_called_once_with(12500)
+
+
+def test_seek_clamps_negative_position_to_zero(mock_vlc: MagicMock) -> None:
+    mock_vlc.set_time.return_value = 0
+    player = VLCPlayer()
+    player.seek(-3.0)
+    mock_vlc.set_time.assert_called_once_with(0)
+
+
+def test_seek_raises_playback_error_when_vlc_returns_failure_code(
+    mock_vlc: MagicMock,
+) -> None:
+    mock_vlc.set_time.return_value = -1
+    player = VLCPlayer()
+    with pytest.raises(PlaybackError, match="seek"):
+        player.seek(10.0)
+
+
+def test_seek_wraps_vlc_errors_as_playback_error(mock_vlc: MagicMock) -> None:
+    mock_vlc.set_time.side_effect = RuntimeError("libvlc boom")
+    player = VLCPlayer()
+    with pytest.raises(PlaybackError, match="seek") as exc_info:
+        player.seek(10.0)
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
 def test_has_ended_true_only_for_ended_state(mock_vlc: MagicMock) -> None:
     mock_vlc.get_state.return_value = vlc.State.Ended
     player = VLCPlayer()

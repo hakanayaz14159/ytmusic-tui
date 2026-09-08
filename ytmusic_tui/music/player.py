@@ -39,6 +39,8 @@ class _VLCMediaPlayer(Protocol):
 
     def get_time(self) -> int: ...
 
+    def set_time(self, time_ms: int) -> int: ...
+
     def get_state(self) -> _VLCState: ...
 
 
@@ -198,6 +200,20 @@ class VLCPlayer:
         except Exception as err:
             logger.exception("get_position failed")
             raise PlaybackError("Failed to get playback position") from err
+
+    def seek(self, position: float) -> None:
+        time_ms = int(max(0.0, position) * 1000.0)
+        try:
+            result = self._player.set_time(time_ms)
+            logger.info("seek position=%s time_ms=%s rc=%s", position, time_ms, result)
+            if result == -1:
+                logger.error("seek rc=-1 position=%s", position)
+                raise PlaybackError("Failed to seek")
+        except PlaybackError:
+            raise
+        except Exception as err:
+            logger.exception("seek failed position=%s", position)
+            raise PlaybackError("Failed to seek") from err
 
     def has_ended(self) -> bool:
         try:

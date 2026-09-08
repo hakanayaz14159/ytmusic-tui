@@ -14,6 +14,8 @@ Search and suggest run on Textual worker threads. A generation counter ignores s
 4. If that generation is still current, commit the song. Otherwise stop the stream that was just prepared.
 5. A tick updates position, reports failures, and advances the queue, except while another track is loading.
 
+`e` / `r` seek 5 seconds backward / forward. `PlaybackService` clamps to the current track and calls `AudioPlayerProtocol.seek`; VLC applies that with `set_time` through the existing Range proxy.
+
 VLC plays through `AudioStreamProxy` on localhost. The proxy adds the CDN headers and Range requests VLC cannot send. Proxy shutdown runs on a background thread so the UI does not wait on the HTTP server poll. VLC closing the localhost connection is ignored (broken pipe); it is not a proxy failure.
 
 A missing system libVLC is a startup error with install instructions. `--help` and `--version` do not need VLC.

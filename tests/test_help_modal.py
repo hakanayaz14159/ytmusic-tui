@@ -57,6 +57,13 @@ async def test_help_lists_suggestion_keys() -> None:
         assert "shift+h" in lowered
         assert "shift+l" in lowered
         assert "append to queue" in lowered
+        assert "<  z" in help_text
+        assert "z  x" in help_text
+        assert "iso" in lowered
+        assert "which pair is active" in lowered
+        assert "seek" in lowered
+        assert "-5s" in lowered
+        assert "+5s" in lowered
 
 
 @pytest.mark.asyncio
