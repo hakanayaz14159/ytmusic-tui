@@ -107,7 +107,7 @@ class NowPlaying(Vertical):
             detail = f"{format_volume_gauge(playback['volume'])}  {playback['volume']}%"
         else:
             uploader = song["artist"] or UNKNOWN_UPLOADER
-            title = f"{glyph}  {song['title']}  —  {uploader}"
+            title = f"{glyph}  {song['title']}  -  {uploader}"
             progress = format_progress_bar(playback["position"], playback["duration"])
             clock = (
                 f"{format_duration(playback['position'])} / "

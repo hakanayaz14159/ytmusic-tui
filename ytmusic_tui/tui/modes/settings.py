@@ -187,8 +187,8 @@ class SettingsMode(Vertical):
 
 def _startup_username(users: list[User], user_id: int | None) -> str:
     if user_id is None:
-        return "—"
+        return "-"
     for user in users:
         if user["id"] == user_id:
             return user["username"]
-    return "—"
+    return "-"

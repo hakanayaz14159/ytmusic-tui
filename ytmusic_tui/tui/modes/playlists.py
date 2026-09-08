@@ -127,7 +127,7 @@ class PlaylistsMode(Horizontal):
             if playlist is None:
                 return
             self.app.push_screen(
-                ConfirmModal(f"Delete playlist “{playlist['name']}”?"),
+                ConfirmModal(f'Delete playlist "{playlist["name"]}"?'),
                 partial(self._on_confirm_delete_playlist, playlist),
             )
 

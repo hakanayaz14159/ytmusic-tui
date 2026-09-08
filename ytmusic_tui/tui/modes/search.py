@@ -67,7 +67,7 @@ class SearchMode(Vertical):
 
     def compose(self) -> ComposeResult:
         yield Input(
-            placeholder="Search YouTube Music…",
+            placeholder="Search YouTube Music...",
             id="search_input",
         )
         yield SuggestionList(id="suggestion_list")
@@ -213,7 +213,7 @@ class SearchMode(Vertical):
 
     def _begin_search(self, query: str) -> None:
         self._search_generation += 1
-        self._set_status(f"Searching “{query}”…")
+        self._set_status(f'Searching "{query}"...')
         self._set_table_visible(False)
 
     def _on_search_success(
@@ -226,13 +226,13 @@ class SearchMode(Vertical):
         table.set_playing_id(song["video_id"] if song is not None else None)
         table.set_songs(results)
         if results:
-            self._set_status(f"{len(results)} results for “{query}”")
+            self._set_status(f'{len(results)} results for "{query}"')
             self._set_table_visible(True)
             search_input = self.query_one("#search_input", Input)
             if search_input.has_focus and search_input.value.strip() == query:
                 table.focus_list()
             return
-        self._set_status(f"No results for “{query}”.")
+        self._set_status(f'No results for "{query}".')
         self._set_table_visible(False)
         self.notify("No results", severity="information")
 

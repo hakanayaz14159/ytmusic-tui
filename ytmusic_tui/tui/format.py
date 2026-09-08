@@ -41,6 +41,7 @@ def format_song_line(song: Song, *, playing: bool = False) -> str:
 def _fit(text: str, width: int) -> str:
     if len(text) <= width:
         return text.ljust(width)
-    if width <= 1:
+    ellipsis = "..."
+    if width <= len(ellipsis):
         return text[:width]
-    return f"{text[: width - 1]}…"
+    return f"{text[: width - len(ellipsis)]}{ellipsis}"

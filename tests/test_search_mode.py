@@ -218,7 +218,7 @@ async def test_search_status_shows_searching_then_count_and_hides_stale_table(
             await pilot.pause()
 
         assert started.is_set()
-        assert "Searching “ambient”" in str(status.content)
+        assert 'Searching "ambient"' in str(status.content)
         searching_visible = table.display
         assert searching_visible is False
 
@@ -231,7 +231,7 @@ async def test_search_status_shows_searching_then_count_and_hides_stale_table(
             await pilot.pause()
 
         assert visible is True
-        assert "2 results for “ambient”" in str(status.content)
+        assert '2 results for "ambient"' in str(status.content)
         assert len(table._songs) == len(SAMPLE_SONGS)
 
 
@@ -252,7 +252,7 @@ async def test_search_status_reports_no_results_for_query(
 
         status = app.query_one("#search_status", Label)
         table = app.query_one("#results_table", SongTable)
-        assert "No results for “xyz”." in str(status.content)
+        assert 'No results for "xyz".' in str(status.content)
         no_results_visible = table.display
         assert no_results_visible is False
 
@@ -483,7 +483,7 @@ async def test_superseded_search_cannot_replace_latest_results(
                 await pilot.pause()
             assert callback.call_count > before
             assert table._songs == SAMPLE_SONGS[1:]
-            assert "1 results for “latest”" in str(
+            assert '1 results for "latest"' in str(
                 app.query_one("#search_status", Label).content
             )
             assert not any(

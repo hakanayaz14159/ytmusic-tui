@@ -65,7 +65,7 @@ class ProfilesMode(Vertical):
         if user is None:
             return
         self.app.push_screen(
-            ConfirmModal(f"Delete profile “{user['username']}”?"),
+            ConfirmModal(f'Delete profile "{user["username"]}"?'),
             partial(self._on_confirm_delete, user),
         )
 

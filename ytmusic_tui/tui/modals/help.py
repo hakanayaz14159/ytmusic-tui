@@ -9,7 +9,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 _HELP_TEXT = """\
-YTMusic — keyboard
+YTMusic - keyboard
 
 1-5          Switch mode
 Tab          Next mode

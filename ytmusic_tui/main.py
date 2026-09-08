@@ -49,7 +49,7 @@ def build_production_app() -> YTMusicApp:
 @click.command()
 @click.version_option(version=__version__)
 def main() -> None:
-    """YTMusic TUI — a terminal music player for YouTube audio.
+    """YTMusic TUI - a terminal music player for YouTube audio.
 
     Unofficial project. Not affiliated with or endorsed by Google or YouTube.
     """

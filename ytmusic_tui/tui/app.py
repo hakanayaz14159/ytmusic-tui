@@ -400,7 +400,7 @@ class YTMusicApp(App[None]):
         if user is None:
             return
         self.push_screen(
-            ConfirmModal(f"Overwrite “{working['name']}” with the current queue?"),
+            ConfirmModal(f'Overwrite "{working["name"]}" with the current queue?'),
             partial(
                 self._on_confirm_overwrite_working,
                 working["id"],

@@ -11,9 +11,9 @@ Launch shows `WelcomeScreen` (wordmark, then profiles). Settings can skip it wit
 ```
 Search  Queue  Playlists  Profiles  Settings              <user>
 ────────────────────────────────────────────────────────────────
- mode body (search table / queue / playlists / …)
+ mode body (search table / queue / playlists / ...)
 ────────────────────────────────────────────────────────────────
-▶ Title — Artist
+▶ Title - Artist
 ████░░░░  01:45 / 03:18                         ▮▮▮▮▯▯  80%
 ────────────────────────────────────────────────────────────────
 enter play   a queue   space pause   / search   ? help
@@ -23,7 +23,7 @@ enter play   a queue   space pause   / search   ? help
 - At width >= 110, a Queue pane docks beside the active mode (hidden when Queue is the mode).
 - Wordmark is the 3-line box-drawing `YTMUSIC` plus `T U I` (one line when height < 24).
 
-**Global:** `1`–`5` modes, `Tab` / `Shift+Tab` cycle, `/` search field, `Space` play/pause (types a space in an Input), `+` `=` `-` volume, `>` `<` queue skip, `?` help, `q` quit when not in an Input, `Ctrl+q` always quits, `Esc` blurs search or closes a modal (does not change mode).
+**Global:** `1`-`5` modes, `Tab` / `Shift+Tab` cycle, `/` search field, `Space` play/pause (types a space in an Input), `+` `=` `-` volume, `>` `<` queue skip, `?` help, `q` quit when not in an Input, `Ctrl+q` always quits, `Esc` blurs search or closes a modal (does not change mode).
 
 **Welcome:** `Enter` select, `n` new profile, `q` quit. Player keys do nothing until the screen dismisses.
 

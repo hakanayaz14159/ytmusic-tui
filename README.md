@@ -6,7 +6,7 @@
 
 A keyboard-driven, audio-only terminal music player for YouTube, built with Python, [Textual](https://github.com/Textualize/textual), [yt-dlp](https://github.com/yt-dlp/yt-dlp), and VLC.
 
-Search YouTube, queue tracks, and keep local profiles and playlists — without leaving the terminal and without loading video.
+Search YouTube, queue tracks, and keep local profiles and playlists - without leaving the terminal and without loading video.
 
 > **Unofficial.** This is a personal hobby project and is not affiliated with, endorsed by, or sponsored by Google LLC, YouTube, or YouTube Music. Please read the [Disclaimer](#disclaimer) before using it.
 
@@ -40,7 +40,7 @@ Search YouTube, queue tracks, and keep local profiles and playlists — without 
 ## Requirements
 
 - **Python** 3.11 or newer
-- **VLC / libVLC** on the system — not installable from PyPI:
+- **VLC / libVLC** on the system - not installable from PyPI:
 
 ```bash
 brew install --cask vlc                 # macOS
@@ -88,7 +88,7 @@ ytmusic-tui --version
 ytmusic-tui --help
 ```
 
-On launch, choose a profile (`enter` to continue, `n` for a new one). In Settings you can pick a startup profile and skip that screen. Press `?` in the player for the keymap: `1`–`5` switch modes and `/` jumps to the query field.
+On launch, choose a profile (`enter` to continue, `n` for a new one). In Settings you can pick a startup profile and skip that screen. Press `?` in the player for the keymap: `1`-`5` switch modes and `/` jumps to the query field.
 
 When YouTube breaks stream extraction, refresh yt-dlp with the same installer you used:
 
@@ -124,7 +124,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 **No accounts, no API keys.** The player does not use the YouTube Data API and never signs you in. It resolves publicly available audio streams through yt-dlp, exactly as yt-dlp would on the command line.
 
-**Nothing is downloaded or redistributed.** Audio is streamed for playback only — no media files are written to disk, and this repository contains no media content.
+**Nothing is downloaded or redistributed.** Audio is streamed for playback only - no media files are written to disk, and this repository contains no media content.
 
 **You are responsible for your own use.** Accessing YouTube is subject to [YouTube's Terms of Service](https://www.youtube.com/t/terms) and to the copyright law of your jurisdiction. This project is published for personal, educational use; make sure the way you use it is permitted where you are.
 
@@ -138,4 +138,4 @@ Built on [Textual](https://github.com/Textualize/textual), [yt-dlp](https://gith
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
